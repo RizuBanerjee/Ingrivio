@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "Ingrivio",
+    "slug": "mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "mobile",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B1612"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Ingrivio uses your camera to scan and identify food ingredients and analyze nutrition.",
+        "NSPhotoLibraryUsageDescription": "Ingrivio accesses your photo library to analyze food images for ingredient detection and nutrition analysis."
+      }
+    },
+    "android": {
+      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE"]
+    },
+    "web": {
+      "favicon": "./assets/images/icon.png"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://replit.com/"
+        }
+      ],
+      "expo-font",
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Ingrivio to access your photos for food analysis.",
+          "cameraPermission": "Allow Ingrivio to use your camera to scan ingredients and food."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

@@ -1,0 +1,380 @@
+Create a modern, production-ready cross-platform mobile application called Ingrivio (Android + iOS) using Flutter or React Native with a scalable backend architecture.
+
+App Overview
+
+Ingrivio is an AI-powered nutrition, recipe, and meal-planning platform that helps users:
+
+Identify ingredients from photos.
+Suggest recipes based on available ingredients.
+Generate detailed cooking instructions.
+Recommend high-quality recipe videos.
+Analyze food nutrition from images.
+Track calories and nutrition like SnapCalorie.
+Chat with an AI nutrition assistant.
+Plan meals through an integrated calendar.
+Access premium AI-powered features through subscriptions.
+
+The UI should be modern, premium, responsive, visually appealing, and suitable for App Store and Google Play release.
+
+Core Features
+1. AI Ingredient Recognition
+
+Users can:
+
+Capture a photo using the camera.
+Upload an image from the gallery.
+
+AI should:
+
+Detect ingredients present in the image.
+Identify quantities when possible.
+Display confidence scores.
+Allow manual editing of detected ingredients.
+
+Example:
+
+Detected Ingredients:
+
+Tomato
+Onion
+Garlic
+Chicken Breast
+Bell Pepper
+2. AI Recipe Generator
+
+Based on detected ingredients:
+
+Generate:
+
+Multiple recipe suggestions.
+Difficulty level.
+Preparation time.
+Cooking time.
+Calories.
+Servings.
+
+For each recipe provide:
+
+Ingredients list.
+Step-by-step instructions.
+Cooking tips.
+Alternative ingredients.
+Nutritional information.
+3. Recipe Video Recommendation
+
+Search and recommend:
+
+YouTube cooking tutorials.
+Recipe videos from trusted sources.
+
+Display:
+
+Thumbnail.
+Duration.
+Creator.
+Rating.
+View count.
+
+Provide:
+
+Watch Video button.
+Open within app.
+4. Food Nutrition Detection (SnapCalorie-like)
+
+Users can take a photo of prepared food.
+
+AI should estimate:
+
+Food name.
+Calories.
+Protein.
+Carbohydrates.
+Fats.
+Fiber.
+Sugar.
+Sodium.
+Vitamins.
+Minerals.
+
+Display:
+
+Nutrition breakdown.
+Nutrition score.
+Health rating.
+
+Use computer vision + nutrition database.
+
+5. AI Meal Planner
+
+Generate:
+
+Daily meal plans.
+Weekly meal plans.
+Monthly meal plans.
+
+Support:
+
+Weight loss.
+Weight gain.
+Muscle gain.
+Keto.
+Vegan.
+Vegetarian.
+Diabetic.
+High protein.
+
+Allow:
+
+Drag-and-drop meal editing.
+Automatic shopping list generation.
+6. Interactive Calendar
+
+Calendar features:
+
+Meal schedule.
+Diet tracking.
+Nutrition logs.
+Water intake tracking.
+Weight tracking.
+Workout schedule integration.
+
+Support:
+
+Daily view.
+Weekly view.
+Monthly view.
+7. AI Chatbot Assistant
+
+Built-in AI assistant capable of:
+
+Recipe suggestions.
+Nutrition advice.
+Meal planning.
+Food substitutions.
+Calorie explanations.
+Cooking help.
+Grocery recommendations.
+
+Chat should support:
+
+Text input.
+Voice input.
+Image input.
+
+Conversation history must be stored.
+
+8. Authentication System
+
+Support:
+
+Email Authentication
+Sign Up
+Login
+Forgot Password
+Social Login
+Google
+Apple
+Facebook
+Security
+JWT Authentication
+OAuth 2.0
+Biometric Login
+Face ID
+Fingerprint Login
+9. User Profile
+
+Store:
+
+Name
+Age
+Height
+Weight
+Gender
+Dietary preferences
+Allergies
+Fitness goals
+
+Users can edit profile anytime.
+
+10. Subscription & Premium Plans
+
+Integrate:
+
+Stripe
+Google Play Billing
+Apple In-App Purchases
+
+Plans:
+
+Free
+Limited scans
+Limited AI chats
+Basic recipes
+Premium
+Unlimited scans
+Advanced AI nutrition analysis
+Personalized meal plans
+Unlimited AI chat
+Advanced analytics
+Exclusive recipes
+Pro
+Family accounts
+AI health insights
+Priority AI processing
+11. Theme Customization
+
+Themes:
+
+Light Mode
+Dark Mode
+AMOLED Mode
+Green Nature Theme
+Ocean Blue Theme
+Sunset Theme
+Custom Theme Creator
+
+Allow:
+
+Font size customization.
+Accent color customization.
+12. Smart Grocery List
+
+Generate grocery lists automatically from:
+
+Recipes.
+Meal plans.
+
+Features:
+
+Checkboxes.
+Quantity calculation.
+Price estimation.
+Store recommendations.
+13. Progress Dashboard
+
+Show:
+
+Daily calories.
+Weekly calories.
+Monthly calories.
+Macronutrient charts.
+Weight progress.
+Water intake.
+Goal completion.
+
+Use interactive charts and analytics.
+
+14. Notifications
+
+Push notifications for:
+
+Meal reminders.
+Water reminders.
+Diet goals.
+Subscription renewals.
+AI recommendations.
+15. Admin Dashboard
+
+Web-based admin panel.
+
+Manage:
+
+Users.
+Subscriptions.
+Recipes.
+Reports.
+Analytics.
+Payments.
+AI usage.
+AI Technologies
+
+Implement:
+
+Computer Vision
+Ingredient Detection
+Food Recognition
+Portion Estimation
+Large Language Model
+
+For:
+
+Recipe generation.
+Nutrition explanation.
+Chatbot.
+Meal planning.
+Recommendation Engine
+
+Suggest:
+
+Recipes.
+Videos.
+Personalized meals.
+Database
+
+Use PostgreSQL or Firebase.
+
+Tables:
+
+Users
+Recipes
+Ingredients
+Meal Plans
+Nutrition Logs
+Chat History
+Subscriptions
+Payments
+Notifications
+Tech Stack
+
+Frontend:
+
+Flutter (preferred) or React Native
+
+Backend:
+
+Node.js + Express
+NestJS (preferred)
+
+Database:
+
+PostgreSQL
+
+Cloud:
+
+AWS / Google Cloud
+
+Storage:
+
+AWS S3
+
+Authentication:
+
+Firebase Auth / Auth0
+
+Payments:
+
+Stripe
+Google Billing
+Apple Billing
+
+AI:
+
+OpenAI GPT
+Vision Models
+Nutrition APIs
+UI/UX Requirements
+
+Design should feel like a combination of:
+
+Premium fitness app
+AI assistant
+Modern food platform
+
+Include:
+
+Smooth animations
+Material 3 Design
+Glassmorphism effects
+Dark mode support
+Responsive layouts
+Accessibility support
