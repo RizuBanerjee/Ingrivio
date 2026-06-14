@@ -1,13 +1,15 @@
 import { Router } from "express";
-import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 
 const router = Router();
 
-function getOpenAI(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
-  return new OpenAI({ apiKey });
+function getGemini(): GoogleGenAI {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
+  return new GoogleGenAI({ apiKey });
 }
+
+const MODEL = "gemini-2.5-flash";
 
 function parseJSON(text: string): unknown {
   const cleaned = text.replace(/^```(?:json)?\s*|\s*```$/gm, "").trim();
@@ -21,35 +23,30 @@ router.post("/ai/analyze-ingredients", async (req, res) => {
       res.status(400).json({ error: "imageBase64 required" });
       return;
     }
-    const openai = getOpenAI();
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_tokens: 1000,
-      messages: [
+    const ai = getGemini();
+    const response = await ai.models.generateContent({
+      model: MODEL,
+      contents: [
         {
           role: "user",
-          content: [
+          parts: [
+            { inlineData: { mimeType: "image/jpeg", data: imageBase64 } },
             {
-              type: "image_url",
-              image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "low" },
-            },
-            {
-              type: "text",
-              text: 'Identify all visible food ingredients. Return only valid JSON:\n{"ingredients":[{"name":"string","quantity":"string or null","confidence":0.95}]}',
+              text: 'Identify all visible food ingredients in this image. Return only valid JSON with no markdown:\n{"ingredients":[{"name":"string","quantity":"string or null","confidence":0.95}]}',
             },
           ],
         },
       ],
     });
-    const content = response.choices[0]?.message?.content ?? '{"ingredients":[]}';
+    const content = response.text ?? '{"ingredients":[]}';
     try {
       res.json(parseJSON(content));
     } catch {
       res.json({ ingredients: [] });
     }
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === "OPENAI_API_KEY not configured") {
-      res.status(503).json({ error: "AI not configured. Add your OPENAI_API_KEY in Secrets." });
+    if (err instanceof Error && err.message === "GEMINI_API_KEY not configured") {
+      res.status(503).json({ error: "AI not configured. Add GEMINI_API_KEY in Secrets." });
       return;
     }
     req.log.error(err);
@@ -64,35 +61,30 @@ router.post("/ai/analyze-nutrition", async (req, res) => {
       res.status(400).json({ error: "imageBase64 required" });
       return;
     }
-    const openai = getOpenAI();
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_tokens: 800,
-      messages: [
+    const ai = getGemini();
+    const response = await ai.models.generateContent({
+      model: MODEL,
+      contents: [
         {
           role: "user",
-          content: [
+          parts: [
+            { inlineData: { mimeType: "image/jpeg", data: imageBase64 } },
             {
-              type: "image_url",
-              image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "low" },
-            },
-            {
-              type: "text",
-              text: 'Analyze the food in this image. Return only valid JSON:\n{"foodName":"string","calories":350,"protein":25,"carbs":40,"fats":12,"fiber":5,"sugar":8,"sodium":420,"nutritionScore":75,"healthRating":"good"}',
+              text: 'Analyze the food in this image. Return only valid JSON with no markdown:\n{"foodName":"string","calories":350,"protein":25,"carbs":40,"fats":12,"fiber":5,"sugar":8,"sodium":420,"nutritionScore":75,"healthRating":"good"}',
             },
           ],
         },
       ],
     });
-    const content = response.choices[0]?.message?.content ?? "{}";
+    const content = response.text ?? "{}";
     try {
       res.json(parseJSON(content));
     } catch {
       res.status(500).json({ error: "Could not parse nutrition data" });
     }
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === "OPENAI_API_KEY not configured") {
-      res.status(503).json({ error: "AI not configured. Add your OPENAI_API_KEY in Secrets." });
+    if (err instanceof Error && err.message === "GEMINI_API_KEY not configured") {
+      res.status(503).json({ error: "AI not configured. Add GEMINI_API_KEY in Secrets." });
       return;
     }
     req.log.error(err);
@@ -102,30 +94,33 @@ router.post("/ai/analyze-nutrition", async (req, res) => {
 
 router.post("/ai/generate-recipes", async (req, res) => {
   try {
-    const {
-      ingredients,
-      servings = 2,
-      dietary = "",
-    } = req.body as { ingredients: string[]; servings?: number; dietary?: string };
+    const { ingredients, servings = 2, dietary = "" } = req.body as {
+      ingredients: string[];
+      servings?: number;
+      dietary?: string;
+    };
     if (!ingredients?.length) {
       res.status(400).json({ error: "ingredients required" });
       return;
     }
-    const openai = getOpenAI();
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_tokens: 3000,
-      messages: [
+    const ai = getGemini();
+    const response = await ai.models.generateContent({
+      model: MODEL,
+      contents: [
         {
           role: "user",
-          content: `Create 3 recipes using: ${ingredients.join(", ")}. Servings: ${servings}.${dietary ? ` Dietary: ${dietary}.` : ""}
+          parts: [
+            {
+              text: `Create 3 recipes using: ${ingredients.join(", ")}. Servings: ${servings}.${dietary ? ` Dietary: ${dietary}.` : ""}
 
-Return only valid JSON:
+Return only valid JSON with no markdown:
 {"recipes":[{"id":"r1","name":"string","description":"string","difficulty":"easy","prepTime":15,"cookTime":20,"calories":450,"servings":${servings},"ingredients":[{"name":"string","amount":"string"}],"instructions":["Step 1..."],"tips":["Tip 1"],"nutritionInfo":{"protein":30,"carbs":45,"fats":15,"fiber":6}}]}`,
+            },
+          ],
         },
       ],
     });
-    const content = response.choices[0]?.message?.content ?? '{"recipes":[]}';
+    const content = response.text ?? '{"recipes":[]}';
     try {
       const parsed = parseJSON(content) as { recipes: Record<string, unknown>[] };
       if (Array.isArray(parsed.recipes)) {
@@ -139,8 +134,8 @@ Return only valid JSON:
       res.json({ recipes: [] });
     }
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === "OPENAI_API_KEY not configured") {
-      res.status(503).json({ error: "AI not configured. Add your OPENAI_API_KEY in Secrets." });
+    if (err instanceof Error && err.message === "GEMINI_API_KEY not configured") {
+      res.status(503).json({ error: "AI not configured. Add GEMINI_API_KEY in Secrets." });
       return;
     }
     req.log.error(err);
@@ -150,36 +145,39 @@ Return only valid JSON:
 
 router.post("/ai/meal-plan", async (req, res) => {
   try {
-    const {
-      goal = "maintain",
-      duration = "week",
-      calories = 2000,
-      dietary = "",
-    } = req.body as { goal?: string; duration?: string; calories?: number; dietary?: string };
+    const { goal = "maintain", duration = "week", calories = 2000, dietary = "" } = req.body as {
+      goal?: string;
+      duration?: string;
+      calories?: number;
+      dietary?: string;
+    };
     const days = duration === "day" ? 1 : duration === "week" ? 7 : 30;
-    const openai = getOpenAI();
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_tokens: 4000,
-      messages: [
+    const ai = getGemini();
+    const response = await ai.models.generateContent({
+      model: MODEL,
+      contents: [
         {
           role: "user",
-          content: `Create a ${days}-day meal plan. Goal: ${goal}. Target: ~${calories} cal/day.${dietary ? ` Dietary: ${dietary}.` : ""}
+          parts: [
+            {
+              text: `Create a ${days}-day meal plan. Goal: ${goal}. Target: ~${calories} cal/day.${dietary ? ` Dietary: ${dietary}.` : ""}
 
-Return only valid JSON:
+Return only valid JSON with no markdown:
 {"plan":[{"day":"Monday","meals":{"breakfast":{"name":"Oatmeal with berries","calories":350},"lunch":{"name":"Grilled chicken salad","calories":520},"dinner":{"name":"Salmon with vegetables","calories":580},"snack":{"name":"Greek yogurt","calories":150}}}]}`,
+            },
+          ],
         },
       ],
     });
-    const content = response.choices[0]?.message?.content ?? '{"plan":[]}';
+    const content = response.text ?? '{"plan":[]}';
     try {
       res.json(parseJSON(content));
     } catch {
       res.json({ plan: [] });
     }
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === "OPENAI_API_KEY not configured") {
-      res.status(503).json({ error: "AI not configured. Add your OPENAI_API_KEY in Secrets." });
+    if (err instanceof Error && err.message === "GEMINI_API_KEY not configured") {
+      res.status(503).json({ error: "AI not configured. Add GEMINI_API_KEY in Secrets." });
       return;
     }
     req.log.error(err);
@@ -197,38 +195,48 @@ router.post("/ai/chat", async (req, res) => {
       res.status(400).json({ error: "message required" });
       return;
     }
-    const openai = getOpenAI();
+    const ai = getGemini();
 
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    const stream = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_tokens: 1024,
-      stream: true,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are Ingrivio's AI nutrition assistant. Help users with nutrition advice, healthy recipes, meal planning, calorie tracking, and food science. Be concise, friendly, and practical. Never give medical diagnoses.",
-        },
-        ...history.slice(-10),
-        { role: "user", content: message },
-      ],
+    const contents = [
+      {
+        role: "user",
+        parts: [
+          {
+            text: "You are Ingrivio's AI nutrition assistant. Help users with nutrition advice, healthy recipes, meal planning, calorie tracking, and food science. Be concise, friendly, and practical. Never give medical diagnoses.",
+          },
+        ],
+      },
+      ...history.slice(-10).map((m) => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }],
+      })),
+      {
+        role: "user",
+        parts: [{ text: message }],
+      },
+    ];
+
+    const stream = await ai.models.generateContentStream({
+      model: MODEL,
+      contents,
     });
 
     for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content;
-      if (content) {
-        res.write(`data: ${JSON.stringify({ content })}\n\n`);
+      const text = chunk.text;
+      if (text) {
+        res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
       }
     }
+
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === "OPENAI_API_KEY not configured") {
-      res.write(`data: ${JSON.stringify({ error: "AI not configured. Add your OPENAI_API_KEY in Secrets." })}\n\n`);
+    if (err instanceof Error && err.message === "GEMINI_API_KEY not configured") {
+      res.write(`data: ${JSON.stringify({ error: "AI not configured. Add GEMINI_API_KEY in Secrets." })}\n\n`);
       res.end();
       return;
     }
