@@ -1,19 +1,10 @@
-import { useColorScheme } from "react-native";
-
-import colors from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 
 /**
- * Returns the design tokens for the current color scheme.
- *
- * The returned object contains all color tokens for the active palette
- * plus scheme-independent values like `radius`.
- *
- * Falls back to the light palette when the device has no dark preference.
- * When a `dark` key is defined in constants/colors.ts, this hook will
- * automatically switch palettes based on the device's appearance setting.
+ * Returns the design tokens for the current theme.
+ * Automatically reflects theme changes from ThemeContext.
  */
 export function useColors() {
-  const scheme = useColorScheme();
-  const palette = scheme === "dark" ? colors.dark : colors.light;
-  return { ...palette, radius: colors.radius };
+  const { theme } = useTheme();
+  return { ...theme.colors, radius: theme.radius };
 }

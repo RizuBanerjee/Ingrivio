@@ -5,32 +5,34 @@ import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 function NativeTabLayout() {
+  const { t } = useLanguage();
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
         <Icon sf={{ default: "house", selected: "house.fill" }} />
-        <Label>Home</Label>
+        <Label>{t("home")}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="scan">
         <Icon sf={{ default: "camera", selected: "camera.fill" }} />
-        <Label>Scan</Label>
+        <Label>{t("scan")}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="recipes">
         <Icon sf={{ default: "fork.knife", selected: "fork.knife" }} />
-        <Label>Recipes</Label>
+        <Label>{t("recipes")}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="chat">
         <Icon sf={{ default: "message", selected: "message.fill" }} />
-        <Label>Chat</Label>
+        <Label>{t("chat")}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: "person", selected: "person.fill" }} />
-        <Label>Profile</Label>
+        <Label>{t("profile")}</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -38,8 +40,7 @@ function NativeTabLayout() {
 
 function ClassicTabLayout() {
   const colors = useColors();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const { t } = useLanguage();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
@@ -61,7 +62,7 @@ function ClassicTabLayout() {
           isIOS ? (
             <BlurView
               intensity={100}
-              tint={isDark ? "dark" : "light"}
+              tint="dark"
               style={StyleSheet.absoluteFill}
             />
           ) : isWeb ? (
@@ -74,7 +75,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
+          title: t("home"),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="house" tintColor={color} size={24} />
@@ -86,7 +87,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="scan"
         options={{
-          title: "Scan",
+          title: t("scan"),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="camera" tintColor={color} size={24} />
@@ -98,7 +99,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="recipes"
         options={{
-          title: "Recipes",
+          title: t("recipes"),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="fork.knife" tintColor={color} size={24} />
@@ -110,7 +111,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="chat"
         options={{
-          title: "Chat",
+          title: t("chat"),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="message" tintColor={color} size={24} />
@@ -122,7 +123,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
+          title: t("profile"),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="person" tintColor={color} size={24} />

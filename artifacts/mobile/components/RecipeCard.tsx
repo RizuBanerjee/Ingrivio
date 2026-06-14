@@ -1,7 +1,9 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
+import { getRecipeEmoji, getRecipeGradient } from "@/utils/recipeUtils";
 import type { Recipe } from "@/contexts/AppContext";
 
 interface Props {
@@ -19,8 +21,10 @@ const DIFFICULTY_COLOR: Record<string, string> = {
 
 export function RecipeCard({ recipe, onPress, onSave, isSaved }: Props) {
   const colors = useColors();
+  const [g1, g2] = getRecipeGradient(recipe.name, 0);
+  const emoji = getRecipeEmoji(recipe.name);
 
-  const styles = StyleSheet.create({
+  const s = StyleSheet.create({
     card: {
       backgroundColor: colors.card,
       borderRadius: colors.radius,
@@ -29,91 +33,74 @@ export function RecipeCard({ recipe, onPress, onSave, isSaved }: Props) {
       marginBottom: 12,
       overflow: "hidden",
     },
-    imagePlaceholder: {
-      height: 140,
-      backgroundColor: colors.secondary,
+    imageWrap: { height: 150 },
+    saveBtn: {
+      position: "absolute",
+      top: 10,
+      right: 10,
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: isSaved ? colors.primary : "rgba(0,0,0,0.35)",
       alignItems: "center",
       justifyContent: "center",
     },
+    emojiWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
+    emoji: { fontSize: 52 },
     body: { padding: 14 },
-    topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
     name: {
       fontSize: 17,
       fontFamily: "Inter_600SemiBold",
       color: colors.foreground,
-      flex: 1,
-      marginRight: 8,
+      marginBottom: 4,
     },
     description: {
       fontSize: 13,
       fontFamily: "Inter_400Regular",
       color: colors.mutedForeground,
-      marginTop: 4,
       lineHeight: 18,
+      marginBottom: 12,
     },
-    metaRow: { flexDirection: "row", gap: 16, marginTop: 12, flexWrap: "wrap" },
+    metaRow: { flexDirection: "row", gap: 12, flexWrap: "wrap", alignItems: "center" },
     meta: { flexDirection: "row", alignItems: "center", gap: 4 },
     metaText: { fontSize: 12, fontFamily: "Inter_500Medium", color: colors.mutedForeground },
-    badge: {
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-      borderRadius: 6,
-      alignSelf: "flex-start",
-    },
+    badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
     badgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-    saveBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 10,
-      backgroundColor: colors.secondary,
-      alignItems: "center",
-      justifyContent: "center",
-    },
   });
 
   const diffColor = DIFFICULTY_COLOR[recipe.difficulty] ?? colors.mutedForeground;
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
-      <View style={styles.imagePlaceholder}>
-        <Feather name="image" size={32} color={colors.border} />
-      </View>
-      <View style={styles.body}>
-        <View style={styles.topRow}>
-          <Text style={styles.name} numberOfLines={1}>
-            {recipe.name}
-          </Text>
-          {onSave && (
-            <TouchableOpacity style={styles.saveBtn} onPress={onSave}>
-              <Feather
-                name={isSaved ? "bookmark" : "bookmark"}
-                size={18}
-                color={isSaved ? colors.primary : colors.mutedForeground}
-                solid={isSaved}
-              />
-            </TouchableOpacity>
-          )}
+    <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.85}>
+      <LinearGradient colors={[g1, g2]} style={s.imageWrap} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+        <View style={s.emojiWrap}>
+          <Text style={s.emoji}>{emoji}</Text>
         </View>
-        <Text style={styles.description} numberOfLines={2}>
-          {recipe.description}
-        </Text>
-        <View style={styles.metaRow}>
-          <View style={styles.meta}>
+        {onSave && (
+          <TouchableOpacity style={s.saveBtn} onPress={onSave}>
+            <Feather name="bookmark" size={17} color={isSaved ? colors.primaryForeground : "#fff"} />
+          </TouchableOpacity>
+        )}
+      </LinearGradient>
+
+      <View style={s.body}>
+        <Text style={s.name} numberOfLines={1}>{recipe.name}</Text>
+        <Text style={s.description} numberOfLines={2}>{recipe.description}</Text>
+        <View style={s.metaRow}>
+          <View style={s.meta}>
             <Feather name="clock" size={13} color={colors.mutedForeground} />
-            <Text style={styles.metaText}>{recipe.prepTime + recipe.cookTime} min</Text>
+            <Text style={s.metaText}>{recipe.prepTime + recipe.cookTime} min</Text>
           </View>
-          <View style={styles.meta}>
+          <View style={s.meta}>
             <Feather name="zap" size={13} color={colors.calories} />
-            <Text style={styles.metaText}>{recipe.calories} kcal</Text>
+            <Text style={s.metaText}>{recipe.calories} kcal</Text>
           </View>
-          <View style={styles.meta}>
+          <View style={s.meta}>
             <Feather name="users" size={13} color={colors.mutedForeground} />
-            <Text style={styles.metaText}>{recipe.servings} servings</Text>
+            <Text style={s.metaText}>{recipe.servings} serv.</Text>
           </View>
-          <View style={[styles.badge, { backgroundColor: diffColor + "20" }]}>
-            <Text style={[styles.badgeText, { color: diffColor }]}>
-              {recipe.difficulty}
-            </Text>
+          <View style={[s.badge, { backgroundColor: diffColor + "25" }]}>
+            <Text style={[s.badgeText, { color: diffColor }]}>{recipe.difficulty}</Text>
           </View>
         </View>
       </View>

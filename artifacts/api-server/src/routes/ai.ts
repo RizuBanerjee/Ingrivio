@@ -16,6 +16,13 @@ function parseJSON(text: string): unknown {
   return JSON.parse(cleaned);
 }
 
+const INDIAN_CONTEXT = `You are specialized in Indian cuisine and nutrition. Focus on:
+- Traditional Indian dishes: biryani, curries, dal, roti, dosa, idli, samosa, chaat, paneer dishes, etc.
+- Indian spices: turmeric, cumin, coriander, cardamom, garam masala, mustard seeds, fenugreek, etc.
+- Indian dietary patterns: vegetarian, vegan Jain, and non-vegetarian Indian diets.
+- Regional Indian cuisines: North Indian, South Indian, Bengali, Gujarati, Punjabi, Rajasthani, etc.
+- Common Indian ingredients: ghee, paneer, dal (lentils), coconut, mustard oil, besan (gram flour), etc.`;
+
 router.post("/ai/analyze-ingredients", async (req, res) => {
   try {
     const { imageBase64 } = req.body as { imageBase64: string };
@@ -32,7 +39,10 @@ router.post("/ai/analyze-ingredients", async (req, res) => {
           parts: [
             { inlineData: { mimeType: "image/jpeg", data: imageBase64 } },
             {
-              text: 'Identify all visible food ingredients in this image. Return only valid JSON with no markdown:\n{"ingredients":[{"name":"string","quantity":"string or null","confidence":0.95}]}',
+              text: `${INDIAN_CONTEXT}
+
+Identify all visible food ingredients in this image, with a focus on Indian foods and ingredients if present. Return only valid JSON with no markdown:
+{"ingredients":[{"name":"string","quantity":"string or null","confidence":0.95}]}`,
             },
           ],
         },
@@ -70,7 +80,10 @@ router.post("/ai/analyze-nutrition", async (req, res) => {
           parts: [
             { inlineData: { mimeType: "image/jpeg", data: imageBase64 } },
             {
-              text: 'Analyze the food in this image. Return only valid JSON with no markdown:\n{"foodName":"string","calories":350,"protein":25,"carbs":40,"fats":12,"fiber":5,"sugar":8,"sodium":420,"nutritionScore":75,"healthRating":"good"}',
+              text: `${INDIAN_CONTEXT}
+
+Analyze the food in this image and provide accurate nutrition information. For Indian foods, be precise about calorie counts (e.g., dal makhani ~200 kcal/100g, biryani ~175 kcal/100g, roti ~300 kcal each). Return only valid JSON with no markdown:
+{"foodName":"string","calories":350,"protein":25,"carbs":40,"fats":12,"fiber":5,"sugar":8,"sodium":420,"nutritionScore":75,"healthRating":"good"}`,
             },
           ],
         },
@@ -111,7 +124,11 @@ router.post("/ai/generate-recipes", async (req, res) => {
           role: "user",
           parts: [
             {
-              text: `Create 3 recipes using: ${ingredients.join(", ")}. Servings: ${servings}.${dietary ? ` Dietary: ${dietary}.` : ""}
+              text: `${INDIAN_CONTEXT}
+
+Create 3 authentic Indian recipes using these ingredients: ${ingredients.join(", ")}. Servings: ${servings}.${dietary ? ` Dietary restriction: ${dietary}.` : ""}
+
+Prioritize traditional Indian dishes and cooking techniques (tadka, dum cooking, etc.). Include authentic spice combinations. If ingredients are non-Indian, suggest fusion or adapt to Indian style.
 
 Return only valid JSON with no markdown:
 {"recipes":[{"id":"r1","name":"string","description":"string","difficulty":"easy","prepTime":15,"cookTime":20,"calories":450,"servings":${servings},"ingredients":[{"name":"string","amount":"string"}],"instructions":["Step 1..."],"tips":["Tip 1"],"nutritionInfo":{"protein":30,"carbs":45,"fats":15,"fiber":6}}]}`,
@@ -160,10 +177,14 @@ router.post("/ai/meal-plan", async (req, res) => {
           role: "user",
           parts: [
             {
-              text: `Create a ${days}-day meal plan. Goal: ${goal}. Target: ~${calories} cal/day.${dietary ? ` Dietary: ${dietary}.` : ""}
+              text: `${INDIAN_CONTEXT}
+
+Create a ${days}-day Indian meal plan. Goal: ${goal}. Target: ~${calories} cal/day.${dietary ? ` Dietary: ${dietary}.` : ""}
+
+Use authentic Indian meals throughout: poha/upma/paratha for breakfast, dal-rice/roti-sabzi/biryani for lunch, curries/khichdi/dosa for dinner, and chaat/fruits/lassi for snacks. Vary regional cuisines across days.
 
 Return only valid JSON with no markdown:
-{"plan":[{"day":"Monday","meals":{"breakfast":{"name":"Oatmeal with berries","calories":350},"lunch":{"name":"Grilled chicken salad","calories":520},"dinner":{"name":"Salmon with vegetables","calories":580},"snack":{"name":"Greek yogurt","calories":150}}}]}`,
+{"plan":[{"day":"Monday","meals":{"breakfast":{"name":"Poha with peanuts","calories":250},"lunch":{"name":"Dal makhani with rice","calories":520},"dinner":{"name":"Palak paneer with roti","calories":480},"snack":{"name":"Masala chai with biscuit","calories":120}}}]}`,
             },
           ],
         },
@@ -201,14 +222,21 @@ router.post("/ai/chat", async (req, res) => {
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
+    const systemPrompt = `You are Ingrivio's AI nutrition assistant, specialized in Indian cuisine and nutrition. You are knowledgeable about:
+- Indian foods: dal, paneer, biryani, roti, dosa, idli, sabzi, curries, chaat, pickles, chutneys, etc.
+- Indian spices and their health benefits: turmeric (anti-inflammatory), cumin (digestion), fenugreek (blood sugar), etc.
+- Ayurvedic dietary principles and traditional Indian health wisdom.
+- Calories and nutrition in Indian dishes (e.g., 1 roti = ~100 kcal, 1 cup dal = ~180 kcal).
+- Regional Indian cuisines and their nutritional profiles.
+- Indian dietary patterns: vegetarian, vegan, Jain, and non-vegetarian diets.
+- Healthy Indian cooking techniques: reducing oil, using ghee in moderation, increasing fiber with dal and vegetables.
+
+Be concise, friendly, and practical. Mix Hindi food terms naturally. Never give medical diagnoses. If asked in Hindi or Hinglish, respond in the same language.`;
+
     const contents = [
       {
         role: "user",
-        parts: [
-          {
-            text: "You are Ingrivio's AI nutrition assistant. Help users with nutrition advice, healthy recipes, meal planning, calorie tracking, and food science. Be concise, friendly, and practical. Never give medical diagnoses.",
-          },
-        ],
+        parts: [{ text: systemPrompt }],
       },
       ...history.slice(-10).map((m) => ({
         role: m.role === "assistant" ? "model" : "user",
