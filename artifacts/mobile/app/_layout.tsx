@@ -18,8 +18,12 @@ import { AppProvider } from "@/contexts/AppContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { FirebaseAuthProvider } from "@/contexts/FirebaseAuthContext";
+import { setupDefaultReminders } from "@/services/notifications";
 
 SplashScreen.preventAutoHideAsync();
+
+// Setup push notifications on app launch
+setupDefaultReminders().catch(() => {});
 
 const queryClient = new QueryClient();
 

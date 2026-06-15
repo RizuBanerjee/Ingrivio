@@ -49,6 +49,7 @@ export interface Recipe {
   instructions: string[];
   tips: string[];
   nutritionInfo: NutritionInfo;
+  imageUrl: string;
 }
 
 export interface NutritionResult {

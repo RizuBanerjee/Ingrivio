@@ -16,8 +16,6 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/contexts/AppContext";
 import { RecipeCard } from "@/components/RecipeCard";
-import { generateRecipes } from "@/services/ai";
-import { logRecipeGenerated } from "@/firebase/analyticsClient";
 import type { Recipe } from "@/contexts/AppContext";
 
 type Tab = "generated" | "saved";
@@ -37,28 +35,7 @@ export default function RecipesScreen() {
 
   const [tab, setTab] = useState<Tab>("generated");
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const handleGenerate = async () => {
-    if (!scannedIngredients.length) return;
-    setLoading(true);
-    setError(null);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      const names = scannedIngredients.map((i) => i.name);
-      const recipes = await generateRecipes(names);
-      logRecipeGenerated(recipes[0]?.name || "unknown");
-      setGeneratedRecipes(recipes);
-      setTab("generated");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to generate recipes");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const recipes: Recipe[] = tab === "generated" ? generatedRecipes : savedRecipes;
   const filtered = recipes.filter((r) =>
@@ -114,13 +91,6 @@ export default function RecipesScreen() {
     genBannerInfo: { flex: 1 },
     genBannerTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.primaryForeground },
     genBannerSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: colors.primaryForeground + "BB", marginTop: 2 },
-    genBannerBtn: {
-      backgroundColor: colors.primaryForeground,
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 10,
-    },
-    genBannerBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.primary },
     tabRow: {
       flexDirection: "row",
       marginHorizontal: 20,
@@ -181,22 +151,15 @@ export default function RecipesScreen() {
       </View>
 
       {scannedIngredients.length > 0 && (
-        <TouchableOpacity style={s.genBanner} onPress={handleGenerate} disabled={loading}>
+        <View style={s.genBanner}>
           <Feather name="zap" size={22} color={colors.primaryForeground} />
           <View style={s.genBannerInfo}>
             <Text style={s.genBannerTitle}>
               {scannedIngredients.length} ingredient{scannedIngredients.length > 1 ? "s" : ""} detected
             </Text>
-            <Text style={s.genBannerSub}>Generate recipes from your scan</Text>
+            <Text style={s.genBannerSub}>Go to Scan tab to generate recipes</Text>
           </View>
-          <View style={s.genBannerBtn}>
-            {loading ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <Text style={s.genBannerBtnText}>Generate</Text>
-            )}
-          </View>
-        </TouchableOpacity>
+        </View>
       )}
 
       {error && (
@@ -222,13 +185,7 @@ export default function RecipesScreen() {
         ))}
       </View>
 
-      {loading && tab === "generated" ? (
-        <View style={s.loadingBox}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={s.loadingText}>Generating recipes...</Text>
-        </View>
-      ) : (
-        <FlatList
+      <FlatList
           data={filtered}
           keyExtractor={(r) => r.id}
           renderItem={({ item }) => (
@@ -259,7 +216,6 @@ export default function RecipesScreen() {
             </View>
           }
         />
-      )}
     </View>
   );
 }

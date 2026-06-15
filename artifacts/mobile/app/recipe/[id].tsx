@@ -11,7 +11,7 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/contexts/AppContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { getRecipeImages, getRecipeGradient, getRecipeEmoji } from "@/utils/recipeUtils";
+import { getRecipeGradient, getRecipeEmoji } from "@/utils/recipeUtils";
 
 const { width: SW } = Dimensions.get("window");
 const CARD_W = SW - 80;
@@ -81,7 +81,7 @@ export default function RecipeDetailScreen() {
 
   const saved = isRecipeSaved(recipe.id);
   const diffColor = DIFFICULTY_COLOR[recipe.difficulty] ?? colors.accent;
-  const images = getRecipeImages(recipe.name);
+  const images = [recipe.imageUrl, recipe.imageUrl, recipe.imageUrl];
 
   const handleSave = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

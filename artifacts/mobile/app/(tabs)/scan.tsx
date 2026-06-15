@@ -20,8 +20,8 @@ import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useApp } from "@/contexts/AppContext";
-import { analyzeIngredients, analyzeNutrition } from "@/services/ai";
-import { logFoodScanned } from "@/firebase/analyticsClient";
+import { analyzeIngredients, analyzeNutrition, generateRecipes } from "@/services/ai";
+import { logFoodScanned, logRecipeGenerated } from "@/firebase/analyticsClient";
 import type { Ingredient, NutritionResult } from "@/services/ai";
 
 type Mode = "ingredients" | "nutrition";
@@ -38,7 +38,7 @@ export default function ScanScreen() {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
-  const { setScannedIngredients, setGeneratedRecipes, setLastNutrition } = useApp();
+  const { scannedIngredients, setScannedIngredients, setGeneratedRecipes, setLastNutrition } = useApp();
 
   const [mode, setMode] = useState<Mode>("ingredients");
   const [loading, setLoading] = useState(false);
@@ -98,6 +98,27 @@ export default function ScanScreen() {
       await analyzeMode(mode, base64, new Set());
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Analysis failed. Please try again.");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerate = async () => {
+    if (!ingredients.length) return;
+    setLoading(true);
+    setError(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const names = ingredients.map((i) => i.name);
+      const recipes = await generateRecipes(names);
+      logRecipeGenerated(recipes[0]?.name || "unknown");
+      setGeneratedRecipes(recipes);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Navigate to recipes tab
+      router.push("/(tabs)/recipes");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to generate recipes. Please try again.");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
@@ -341,7 +362,8 @@ export default function ScanScreen() {
               >
                 <TouchableOpacity
                   style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-                  onPress={() => router.push("/(tabs)/recipes")}
+                  onPress={handleGenerate}
+                  disabled={loading}
                 >
                   <Feather name="book-open" size={18} color={colors.primaryForeground} />
                   <Text style={s.genBtnText}>{t("generate_recipes")}</Text>

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
-import { getRecipeImage, getRecipeGradient, getRecipeEmoji } from "@/utils/recipeUtils";
+import { getRecipeGradient, getRecipeEmoji } from "@/utils/recipeUtils";
 import type { Recipe } from "@/contexts/AppContext";
 
 interface Props {
@@ -24,7 +24,7 @@ export function RecipeCard({ recipe, onPress, onSave, isSaved }: Props) {
   const [imgError, setImgError] = useState(false);
   const [g1, g2] = getRecipeGradient(recipe.name, 0);
   const emoji = getRecipeEmoji(recipe.name);
-  const imageUrl = getRecipeImage(recipe.name, 0);
+  const imageUrl = recipe.imageUrl;
 
   const s = StyleSheet.create({
     card: {
