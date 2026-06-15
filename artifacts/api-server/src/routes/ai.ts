@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { GoogleGenAI } from "@google/genai";
+import { createAIOrchestrator, type AIMessage } from "../lib/ai-providers";
 
 // Map common Indian dish names to real food images
 const RECIPE_IMAGE_MAP: Record<string, string> = {
@@ -108,19 +108,9 @@ function getRecipeImage(name: string): string {
   return DEFAULT_IMAGES[hash % DEFAULT_IMAGES.length];
 }
 
-const router = Router();
-
-function getGemini(): GoogleGenAI {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
-  return new GoogleGenAI({ apiKey });
-}
-
-const MODEL = "gemini-2.5-flash";
-
-function parseJSON(text: string): unknown {
+function parseJSON(text: string): Record<string, unknown> {
   const cleaned = text.replace(/^```(?:json)?\s*|\s*```$/gm, "").trim();
-  return JSON.parse(cleaned);
+  return JSON.parse(cleaned) as Record<string, unknown>;
 }
 
 const INDIAN_CONTEXT = `You are specialized in Indian cuisine and nutrition. Focus on:
@@ -130,89 +120,106 @@ const INDIAN_CONTEXT = `You are specialized in Indian cuisine and nutrition. Foc
 - Regional Indian cuisines: North Indian, South Indian, Bengali, Gujarati, Punjabi, Rajasthani, etc.
 - Common Indian ingredients: ghee, paneer, dal (lentils), coconut, mustard oil, besan (gram flour), etc.`;
 
-router.post("/ai/analyze-ingredients", async (req, res) => {
+const router = Router();
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Initialize AI orchestrator
+// ─────────────────────────────────────────────────────────────────────────────
+
+let aiOrchestrator: ReturnType<typeof createAIOrchestrator> | null = null;
+
+function getAI() {
+  if (!aiOrchestrator) {
+    aiOrchestrator = createAIOrchestrator();
+  }
+  return aiOrchestrator;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Analyze Ingredients
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.post("/ai/analyze-ingredients", async (req, res): Promise<void> => {
   try {
     const { imageBase64 } = req.body as { imageBase64: string };
     if (!imageBase64) {
       res.status(400).json({ error: "imageBase64 required" });
       return;
     }
-    const ai = getGemini();
-    const response = await ai.models.generateContent({
-      model: MODEL,
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { inlineData: { mimeType: "image/jpeg", data: imageBase64 } },
-            {
-              text: `${INDIAN_CONTEXT}
+
+    const ai = getAI();
+    const messages: AIMessage[] = [
+      {
+        role: "user",
+        content: `${INDIAN_CONTEXT}
 
 Identify all visible food ingredients in this image, with a focus on Indian foods and ingredients if present. Return only valid JSON with no markdown:
 {"ingredients":[{"name":"string","quantity":"string or null","confidence":0.95}]}`,
-            },
-          ],
-        },
-      ],
-    });
-    const content = response.text ?? '{"ingredients":[]}';
+        imageData: { base64: imageBase64, mimeType: "image/jpeg" },
+      },
+    ];
+
+    const response = await ai.generateContent(messages);
     try {
-      res.json(parseJSON(content));
+      res.json({ ...parseJSON(response.text), _provider: response.provider });
     } catch {
-      res.json({ ingredients: [] });
+      res.json({ ingredients: [], _provider: response.provider });
     }
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === "GEMINI_API_KEY not configured") {
-      res.status(503).json({ error: "AI not configured. Add GEMINI_API_KEY in Secrets." });
+    if (err instanceof Error && err.message.includes("not configured")) {
+      res.status(503).json({ error: "AI not configured. Add GEMINI_API_KEY, GROQ_API_KEY, or OPENROUTER_API_KEY in Secrets." });
       return;
     }
     req.log.error(err);
-    res.status(500).json({ error: "Failed to analyze ingredients" });
+    res.status(500).json({ error: "Failed to analyze ingredients", _provider: "none" });
   }
 });
 
-router.post("/ai/analyze-nutrition", async (req, res) => {
+// ─────────────────────────────────────────────────────────────────────────────
+//  Analyze Nutrition
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.post("/ai/analyze-nutrition", async (req, res): Promise<void> => {
   try {
     const { imageBase64 } = req.body as { imageBase64: string };
     if (!imageBase64) {
       res.status(400).json({ error: "imageBase64 required" });
       return;
     }
-    const ai = getGemini();
-    const response = await ai.models.generateContent({
-      model: MODEL,
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { inlineData: { mimeType: "image/jpeg", data: imageBase64 } },
-            {
-              text: `${INDIAN_CONTEXT}
+
+    const ai = getAI();
+    const messages: AIMessage[] = [
+      {
+        role: "user",
+        content: `${INDIAN_CONTEXT}
 
 Analyze the food in this image and provide accurate nutrition information. For Indian foods, be precise about calorie counts (e.g., dal makhani ~200 kcal/100g, biryani ~175 kcal/100g, roti ~300 kcal each). Return only valid JSON with no markdown:
 {"foodName":"string","calories":350,"protein":25,"carbs":40,"fats":12,"fiber":5,"sugar":8,"sodium":420,"nutritionScore":75,"healthRating":"good"}`,
-            },
-          ],
-        },
-      ],
-    });
-    const content = response.text ?? "{}";
+        imageData: { base64: imageBase64, mimeType: "image/jpeg" },
+      },
+    ];
+
+    const response = await ai.generateContent(messages);
     try {
-      res.json(parseJSON(content));
+      res.json({ ...parseJSON(response.text), _provider: response.provider });
     } catch {
-      res.status(500).json({ error: "Could not parse nutrition data" });
+      res.status(500).json({ error: "Could not parse nutrition data", _provider: response.provider });
     }
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === "GEMINI_API_KEY not configured") {
-      res.status(503).json({ error: "AI not configured. Add GEMINI_API_KEY in Secrets." });
+    if (err instanceof Error && err.message.includes("not configured")) {
+      res.status(503).json({ error: "AI not configured. Add GEMINI_API_KEY, GROQ_API_KEY, or OPENROUTER_API_KEY in Secrets." });
       return;
     }
     req.log.error(err);
-    res.status(500).json({ error: "Failed to analyze nutrition" });
+    res.status(500).json({ error: "Failed to analyze nutrition", _provider: "none" });
   }
 });
 
-router.post("/ai/generate-recipes", async (req, res) => {
+// ─────────────────────────────────────────────────────────────────────────────
+//  Generate Recipes
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.post("/ai/generate-recipes", async (req, res): Promise<void> => {
   try {
     const { ingredients, servings = 2, dietary = "" } = req.body as {
       ingredients: string[];
@@ -223,15 +230,12 @@ router.post("/ai/generate-recipes", async (req, res) => {
       res.status(400).json({ error: "ingredients required" });
       return;
     }
-    const ai = getGemini();
-    const response = await ai.models.generateContent({
-      model: MODEL,
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: `${INDIAN_CONTEXT}
+
+    const ai = getAI();
+    const messages: AIMessage[] = [
+      {
+        role: "user",
+        content: `${INDIAN_CONTEXT}
 
 Create 3 authentic Indian recipes using these ingredients: ${ingredients.join(", ")}. Servings: ${servings}.${dietary ? ` Dietary restriction: ${dietary}.` : ""}
 
@@ -239,14 +243,12 @@ Prioritize traditional Indian dishes and cooking techniques (tadka, dum cooking,
 
 Return only valid JSON with no markdown:
 {"recipes":[{"id":"r1","name":"string","description":"string","difficulty":"easy","prepTime":15,"cookTime":20,"calories":450,"servings":${servings},"ingredients":[{"name":"string","amount":"string"}],"instructions":["Step 1..."],"tips":["Tip 1"],"nutritionInfo":{"protein":30,"carbs":45,"fats":15,"fiber":6}}]}`,
-            },
-          ],
-        },
-      ],
-    });
-    const content = response.text ?? '{"recipes":[]}';
+      },
+    ];
+
+    const response = await ai.generateContent(messages);
     try {
-      const parsed = parseJSON(content) as { recipes: Record<string, unknown>[] };
+      const parsed = parseJSON(response.text) as { recipes: Record<string, unknown>[] };
       if (Array.isArray(parsed.recipes)) {
         parsed.recipes = parsed.recipes.map((r, i) => {
           const name = (r.name as string) || "Unknown";
@@ -257,21 +259,25 @@ Return only valid JSON with no markdown:
           };
         });
       }
-      res.json(parsed);
+      res.json({ ...parsed, _provider: response.provider });
     } catch {
-      res.json({ recipes: [] });
+      res.json({ recipes: [], _provider: response.provider });
     }
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === "GEMINI_API_KEY not configured") {
-      res.status(503).json({ error: "AI not configured. Add GEMINI_API_KEY in Secrets." });
+    if (err instanceof Error && err.message.includes("not configured")) {
+      res.status(503).json({ error: "AI not configured. Add GEMINI_API_KEY, GROQ_API_KEY, or OPENROUTER_API_KEY in Secrets." });
       return;
     }
     req.log.error(err);
-    res.status(500).json({ error: "Failed to generate recipes" });
+    res.status(500).json({ error: "Failed to generate recipes", _provider: "none" });
   }
 });
 
-router.post("/ai/meal-plan", async (req, res) => {
+// ─────────────────────────────────────────────────────────────────────────────
+//  Meal Plan
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.post("/ai/meal-plan", async (req, res): Promise<void> => {
   try {
     const { goal = "maintain", duration = "week", calories = 2000, dietary = "" } = req.body as {
       goal?: string;
@@ -280,15 +286,12 @@ router.post("/ai/meal-plan", async (req, res) => {
       dietary?: string;
     };
     const days = duration === "day" ? 1 : duration === "week" ? 7 : 30;
-    const ai = getGemini();
-    const response = await ai.models.generateContent({
-      model: MODEL,
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: `${INDIAN_CONTEXT}
+
+    const ai = getAI();
+    const messages: AIMessage[] = [
+      {
+        role: "user",
+        content: `${INDIAN_CONTEXT}
 
 Create a ${days}-day Indian meal plan. Goal: ${goal}. Target: ~${calories} cal/day.${dietary ? ` Dietary: ${dietary}.` : ""}
 
@@ -296,28 +299,30 @@ Use authentic Indian meals throughout: poha/upma/paratha for breakfast, dal-rice
 
 Return only valid JSON with no markdown:
 {"plan":[{"day":"Monday","meals":{"breakfast":{"name":"Poha with peanuts","calories":250},"lunch":{"name":"Dal makhani with rice","calories":520},"dinner":{"name":"Palak paneer with roti","calories":480},"snack":{"name":"Masala chai with biscuit","calories":120}}}]}`,
-            },
-          ],
-        },
-      ],
-    });
-    const content = response.text ?? '{"plan":[]}';
+      },
+    ];
+
+    const response = await ai.generateContent(messages);
     try {
-      res.json(parseJSON(content));
+      res.json({ ...parseJSON(response.text), _provider: response.provider });
     } catch {
-      res.json({ plan: [] });
+      res.json({ plan: [], _provider: response.provider });
     }
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === "GEMINI_API_KEY not configured") {
-      res.status(503).json({ error: "AI not configured. Add GEMINI_API_KEY in Secrets." });
+    if (err instanceof Error && err.message.includes("not configured")) {
+      res.status(503).json({ error: "AI not configured. Add GEMINI_API_KEY, GROQ_API_KEY, or OPENROUTER_API_KEY in Secrets." });
       return;
     }
     req.log.error(err);
-    res.status(500).json({ error: "Failed to generate meal plan" });
+    res.status(500).json({ error: "Failed to generate meal plan", _provider: "none" });
   }
 });
 
-router.post("/ai/chat", async (req, res) => {
+// ─────────────────────────────────────────────────────────────────────────────
+//  Chat (Streaming)
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.post("/ai/chat", async (req, res): Promise<void> => {
   try {
     const { message, history = [] } = req.body as {
       message: string;
@@ -327,7 +332,6 @@ router.post("/ai/chat", async (req, res) => {
       res.status(400).json({ error: "message required" });
       return;
     }
-    const ai = getGemini();
 
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -344,43 +348,47 @@ router.post("/ai/chat", async (req, res) => {
 
 Be concise, friendly, and practical. Mix Hindi food terms naturally. Never give medical diagnoses. If asked in Hindi or Hinglish, respond in the same language.`;
 
-    const contents = [
-      {
-        role: "user",
-        parts: [{ text: systemPrompt }],
-      },
-      ...history.slice(-10).map((m) => ({
-        role: m.role === "assistant" ? "model" : "user",
-        parts: [{ text: m.content }],
-      })),
-      {
-        role: "user",
-        parts: [{ text: message }],
-      },
+    const messages: AIMessage[] = [
+      { role: "system", content: systemPrompt },
+      ...history.slice(-10).map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+      { role: "user", content: message },
     ];
 
-    const stream = await ai.models.generateContentStream({
-      model: MODEL,
-      contents,
-    });
+    const ai = getAI();
+    let providerUsed = "none";
 
-    for await (const chunk of stream) {
-      const text = chunk.text;
-      if (text) {
-        res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+    for await (const chunk of ai.generateContentStream(messages)) {
+      if (chunk.error) {
+        res.write(`data: ${JSON.stringify({ error: chunk.error })}
+\n`);
+        res.end();
+        return;
+      }
+      if (chunk.done) {
+        res.write(`data: ${JSON.stringify({ done: true })}
+\n`);
+        res.end();
+        return;
+      }
+      if (chunk.content) {
+        res.write(`data: ${JSON.stringify({ content: chunk.content })}
+\n`);
       }
     }
 
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.write(`data: ${JSON.stringify({ done: true })}
+\n`);
     res.end();
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === "GEMINI_API_KEY not configured") {
-      res.write(`data: ${JSON.stringify({ error: "AI not configured. Add GEMINI_API_KEY in Secrets." })}\n\n`);
+    if (err instanceof Error && err.message.includes("not configured")) {
+      res.write(`data: ${JSON.stringify({ error: "AI not configured. Add GEMINI_API_KEY, GROQ_API_KEY, or OPENROUTER_API_KEY in Secrets." })}
+\n`);
       res.end();
       return;
     }
     req.log.error(err);
-    res.write(`data: ${JSON.stringify({ error: "Failed to get AI response. Please try again." })}\n\n`);
+    res.write(`data: ${JSON.stringify({ error: "Failed to get AI response. Please try again." })}
+\n`);
     res.end();
   }
 });
