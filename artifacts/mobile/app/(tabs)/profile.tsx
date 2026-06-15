@@ -143,7 +143,7 @@ export default function ProfileScreen() {
     },
     infoLabel: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.mutedForeground },
     infoValue: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground },
-    spacer: { height: Platform.OS === "web" ? 34 : insets.bottom + 80 },
+    spacer: { height: Platform.OS === "web" ? 100 : insets.bottom + 120 },
   });
 
   return (

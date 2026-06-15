@@ -86,7 +86,7 @@ export default function HomeScreen() {
       backgroundColor: colors.primary, width: 38, height: 38,
       borderRadius: 12, alignItems: "center", justifyContent: "center",
     },
-    spacer: { height: Platform.OS === "web" ? 34 : insets.bottom + 80 },
+    spacer: { height: Platform.OS === "web" ? 100 : insets.bottom + 120 },
   });
 
   return (

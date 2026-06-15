@@ -118,7 +118,7 @@ export default function ScanScreen() {
       setGeneratedRecipes(recipes);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // Navigate to recipes tab
-      router.push("/(tabs)/recipes");
+      router.navigate("/recipes");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to generate recipes. Please try again.");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -263,7 +263,7 @@ export default function ScanScreen() {
       alignItems: "center", gap: 10,
     },
     notYetText: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "center" },
-    spacer: { height: Platform.OS === "web" ? 34 : insets.bottom + 80 },
+    spacer: { height: Platform.OS === "web" ? 100 : insets.bottom + 120 },
     empty: { alignItems: "center", paddingVertical: 40, gap: 12 },
     emptyText: { fontSize: 15, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "center", paddingHorizontal: 30 },
   });

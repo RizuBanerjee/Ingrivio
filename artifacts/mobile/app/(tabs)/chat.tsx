@@ -101,7 +101,7 @@ export default function ChatScreen() {
       backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 10,
     },
     list: { flex: 1 },
-    listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
+    listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: Platform.OS === "web" ? 100 : insets.bottom + 120 },
     emptyWrap: { flex: 1, paddingTop: 32 },
     emptyTitle: { fontSize: 20, fontFamily: "Inter_600SemiBold", color: colors.foreground, textAlign: "center", marginBottom: 8 },
     emptySub: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "center", paddingHorizontal: 24, lineHeight: 21 },

@@ -125,7 +125,7 @@ export default function RecipesScreen() {
     empty: { alignItems: "center", paddingVertical: 60, gap: 14 },
     emptyTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold", color: colors.foreground },
     emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "center", paddingHorizontal: 40 },
-    listContent: { paddingHorizontal: 20, paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 80 },
+    listContent: { paddingHorizontal: 20, paddingBottom: Platform.OS === "web" ? 100 : insets.bottom + 120 },
   });
 
   return (
