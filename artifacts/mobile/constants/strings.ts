@@ -18,7 +18,8 @@ export type StringKey =
   | "ingredients_detected" | "generate_from_scan"
   | "no_recipes_yet" | "no_saved_recipes"
   | "instructions" | "tips" | "nutrition_per_serving"
-  | "lose_weight" | "maintain" | "gain_weight" | "build_muscle";
+  | "lose_weight" | "maintain" | "gain_weight" | "build_muscle"
+  | "sign_in" | "sign_out" | "sign_up" | "welcome" | "guest" | "sync";
 
 const en: Record<StringKey, string> = {
   home: "Home", scan: "Scan", recipes: "Recipes", chat: "Chat", profile: "Profile",
@@ -42,6 +43,7 @@ const en: Record<StringKey, string> = {
   no_recipes_yet: "No recipes yet", no_saved_recipes: "No saved recipes",
   instructions: "Instructions", tips: "Tips", nutrition_per_serving: "Nutrition per serving",
   lose_weight: "Lose Weight", maintain: "Maintain", gain_weight: "Gain Weight", build_muscle: "Build Muscle",
+  sign_in: "Sign In", sign_out: "Sign Out", sign_up: "Sign Up", welcome: "Welcome", guest: "Guest", sync: "Sync",
 };
 
 const hi: Record<StringKey, string> = {
@@ -66,6 +68,7 @@ const hi: Record<StringKey, string> = {
   no_recipes_yet: "अभी तक कोई व्यंजन नहीं", no_saved_recipes: "कोई सहेजा व्यंजन नहीं",
   instructions: "निर्देश", tips: "सुझाव", nutrition_per_serving: "प्रति सर्विंग पोषण",
   lose_weight: "वजन घटाएं", maintain: "बनाए रखें", gain_weight: "वजन बढ़ाएं", build_muscle: "मांसपेशी बनाएं",
+  sign_in: "साइन इन", sign_out: "साइन आउट", sign_up: "साइन अप", welcome: "स्वागत", guest: "मेहमान", sync: "सिंक",
 };
 
 export const STRINGS: Record<Language, Record<StringKey, string>> = { en, hi };

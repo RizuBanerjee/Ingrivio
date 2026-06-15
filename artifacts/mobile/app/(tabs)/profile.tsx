@@ -6,11 +6,13 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useApp, type UserProfile } from "@/contexts/AppContext";
+import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
 import { THEMES, type ThemeId } from "@/constants/themes";
 
 const GOALS = [
@@ -28,6 +30,8 @@ export default function ProfileScreen() {
   const { t, language, setLanguage } = useLanguage();
   const insets = useSafeAreaInsets();
   const { profile, updateProfile, todayLog, savedRecipes } = useApp();
+  const { user, isAnonymous, signOut } = useFirebaseAuth();
+  const isLoggedIn = !!user && !isAnonymous;
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<UserProfile>(profile);
@@ -41,7 +45,8 @@ export default function ProfileScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
-  const initials = (profile.name || "IN")
+  const displayName = isLoggedIn ? (user?.displayName || user?.email?.split("@")[0] || "User") : (profile.name || t("guest"));
+  const initials = (displayName || "IN")
     .split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
   const s = StyleSheet.create({
@@ -169,7 +174,7 @@ export default function ProfileScreen() {
                   placeholderTextColor="rgba(255,255,255,0.4)"
                 />
               ) : (
-                <Text style={s.profileName}>{profile.name || "Set your name"}</Text>
+                <Text style={s.profileName}>{displayName}</Text>
               )}
               <View style={s.goalBadge}>
                 <Text style={s.goalBadgeText}>
@@ -193,6 +198,37 @@ export default function ProfileScreen() {
               <Text style={s.statLabel}>{stat.label}</Text>
             </View>
           ))}
+        </View>
+
+        {/* Account */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>{isLoggedIn ? t("welcome") : t("sign_in")}</Text>
+          <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+            <Text style={s.fieldValue}>
+              {isLoggedIn ? (user?.email || "") : t("guest")}
+            </Text>
+            <TouchableOpacity
+              style={{
+                paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+                backgroundColor: isLoggedIn ? colors.error + "20" : colors.primary,
+              }}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                if (isLoggedIn) {
+                  signOut();
+                } else {
+                  router.push("/auth");
+                }
+              }}
+            >
+              <Text style={{
+                fontSize: 13, fontFamily: "Inter_600SemiBold",
+                color: isLoggedIn ? colors.error : colors.primaryForeground,
+              }}>
+                {isLoggedIn ? t("sign_out") : t("sign_in")}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Appearance */}

@@ -22,6 +22,7 @@ export interface ThemeColors {
   carbs: string;
   fats: string;
   success: string;
+  error: string;
   surface: string;
   tint: string;
 }
@@ -63,6 +64,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       border: "#2d1f6e",
       input: "#2d1f6e",
       destructive: "#E63946",
+      error: "#E63946",
       destructiveForeground: "#FFFFFF",
       calories: "#FF6B6B",
       protein: "#74B9FF",
@@ -102,6 +104,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       border: "#0f2d4a",
       input: "#0f2d4a",
       destructive: "#E63946",
+      error: "#E63946",
       destructiveForeground: "#FFFFFF",
       calories: "#FB923C",
       protein: "#60A5FA",
@@ -141,6 +144,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       border: "#300060",
       input: "#300060",
       destructive: "#F43F5E",
+      error: "#F43F5E",
       destructiveForeground: "#FFFFFF",
       calories: "#FB7185",
       protein: "#818CF8",
@@ -180,6 +184,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       border: "#3d1800",
       input: "#3d1800",
       destructive: "#DC2626",
+      error: "#DC2626",
       destructiveForeground: "#FFFFFF",
       calories: "#FB923C",
       protein: "#FBBF24",
@@ -219,6 +224,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       border: "#1E4034",
       input: "#1E4034",
       destructive: "#E63946",
+      error: "#E63946",
       destructiveForeground: "#FFFFFF",
       calories: "#FF8C5A",
       protein: "#6B7FEE",
@@ -258,6 +264,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       border: "#D1E9DB",
       input: "#D1E9DB",
       destructive: "#E63946",
+      error: "#E63946",
       destructiveForeground: "#FFFFFF",
       calories: "#FF6B35",
       protein: "#4361EE",
@@ -297,6 +304,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       border: "#2A2A2A",
       input: "#2A2A2A",
       destructive: "#EF4444",
+      error: "#EF4444",
       destructiveForeground: "#FFFFFF",
       calories: "#FB923C",
       protein: "#60A5FA",
@@ -336,6 +344,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       border: "#E5E5E5",
       input: "#E5E5E5",
       destructive: "#EF4444",
+      error: "#EF4444",
       destructiveForeground: "#FFFFFF",
       calories: "#F97316",
       protein: "#3B82F6",

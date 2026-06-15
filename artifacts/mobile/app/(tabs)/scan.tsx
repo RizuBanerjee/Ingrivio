@@ -21,6 +21,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useApp } from "@/contexts/AppContext";
 import { analyzeIngredients, analyzeNutrition } from "@/services/ai";
+import { logFoodScanned } from "@/firebase/analyticsClient";
 import type { Ingredient, NutritionResult } from "@/services/ai";
 
 type Mode = "ingredients" | "nutrition";
@@ -110,11 +111,13 @@ export default function ScanScreen() {
     try {
       if (targetMode === "ingredients") {
         const items = await analyzeIngredients(base64);
+        logFoodScanned("ingredients");
         setIngredients(items);
         setScannedIngredients(items);
         setGeneratedRecipes([]);
       } else {
         const res = await analyzeNutrition(base64);
+        logFoodScanned("nutrition");
         setNutrition(res);
         setLastNutrition(res);
       }

@@ -17,6 +17,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/contexts/AppContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import { FirebaseAuthProvider } from "@/contexts/FirebaseAuthContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -27,6 +28,7 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="recipe/[id]" options={{ headerShown: false, presentation: "card" }} />
+      <Stack.Screen name="auth" options={{ headerShown: false, presentation: "modal" }} />
     </Stack>
   );
 }
@@ -54,7 +56,9 @@ export default function RootLayout() {
               <GestureHandlerRootView style={{ flex: 1 }}>
                 <KeyboardProvider>
                   <AppProvider>
-                    <RootLayoutNav />
+                    <FirebaseAuthProvider>
+                      <RootLayoutNav />
+                    </FirebaseAuthProvider>
                   </AppProvider>
                 </KeyboardProvider>
               </GestureHandlerRootView>

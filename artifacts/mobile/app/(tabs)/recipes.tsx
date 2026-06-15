@@ -17,6 +17,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/contexts/AppContext";
 import { RecipeCard } from "@/components/RecipeCard";
 import { generateRecipes } from "@/services/ai";
+import { logRecipeGenerated } from "@/firebase/analyticsClient";
 import type { Recipe } from "@/contexts/AppContext";
 
 type Tab = "generated" | "saved";
@@ -47,6 +48,7 @@ export default function RecipesScreen() {
     try {
       const names = scannedIngredients.map((i) => i.name);
       const recipes = await generateRecipes(names);
+      logRecipeGenerated(recipes[0]?.name || "unknown");
       setGeneratedRecipes(recipes);
       setTab("generated");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
