@@ -1,9 +1,14 @@
 import React, { useRef, useState } from "react";
 import {
-  View, Text, StyleSheet, FlatList, TextInput,
-  TouchableOpacity, Platform, ActivityIndicator,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TextInput,
+  TouchableOpacity,
+  Platform,
+  ActivityIndicator,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -33,6 +38,7 @@ export default function ChatScreen() {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const inputRef = useRef<TextInput>(null);
+  const listRef = useRef<FlatList>(null);
 
   const uid = () => Date.now().toString() + Math.random().toString(36).substr(2, 6);
 
@@ -42,23 +48,36 @@ export default function ChatScreen() {
     const userMsg: Msg = { id: uid(), role: "user", content: text.trim() };
     const assistantId = uid();
     const hist = messages.map((m) => ({ role: m.role, content: m.content }));
-    setMessages((p) => [...p, userMsg, { id: assistantId, role: "assistant", content: "" }]);
+    setMessages((p) => [{ id: assistantId, role: "assistant", content: "" }, userMsg, ...p]);
     setInput("");
     setStreaming(true);
 
     await streamChat(
       text.trim(), hist,
-      (chunk) => setMessages((p) => p.map((m) => m.id === assistantId ? { ...m, content: m.content + chunk } : m)),
-      () => { setStreaming(false); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); },
-      (err) => { setMessages((p) => p.map((m) => m.id === assistantId ? { ...m, content: `Error: ${err}` } : m)); setStreaming(false); }
+      (chunk) => setMessages((p) =>
+        p.map((m) => m.id === assistantId ? { ...m, content: m.content + chunk } : m)
+      ),
+      () => {
+        setStreaming(false);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      },
+      (err) => {
+        setMessages((p) =>
+          p.map((m) => m.id === assistantId ? { ...m, content: `Error: ${err}` } : m)
+        );
+        setStreaming(false);
+      }
     );
   };
+
+  const inputBarHeight = Platform.OS === "web" ? 34 : insets.bottom + 8;
 
   const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     headerGrad: {
       paddingTop: Platform.OS === "web" ? 67 : insets.top + 16,
-      paddingHorizontal: 20, paddingBottom: 16,
+      paddingHorizontal: 20,
+      paddingBottom: 16,
     },
     headerRow: { flexDirection: "row", alignItems: "center", gap: 12 },
     avatarBox: {
@@ -68,41 +87,68 @@ export default function ChatScreen() {
     },
     headerName: { fontSize: 17, fontFamily: "Inter_600SemiBold", color: "#FFFFFF" },
     headerSub: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.6)" },
+    clearBtn: {
+      marginLeft: "auto", padding: 8,
+      backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 10,
+    },
     list: { flex: 1 },
-    listContent: { paddingHorizontal: 16, paddingTop: 16 },
+    listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
     emptyWrap: { flex: 1, paddingTop: 32 },
     emptyTitle: { fontSize: 20, fontFamily: "Inter_600SemiBold", color: colors.foreground, textAlign: "center", marginBottom: 8 },
     emptySub: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "center", paddingHorizontal: 24, lineHeight: 21 },
-    suggestionsTitle: { fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, textTransform: "uppercase", letterSpacing: 0.8, marginTop: 24, marginBottom: 10, textAlign: "center" },
+    suggestionsTitle: {
+      fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground,
+      textTransform: "uppercase", letterSpacing: 0.8, marginTop: 24, marginBottom: 10, textAlign: "center",
+    },
     suggestion: {
       backgroundColor: colors.card, borderRadius: 12, borderWidth: 1,
       borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 8,
     },
     suggestionText: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.foreground },
-    msgWrap: { marginBottom: 12, maxWidth: "85%" },
+    msgWrap: { marginBottom: 10, maxWidth: "85%" },
     msgWrapUser: { alignSelf: "flex-end" },
     msgWrapAssist: { alignSelf: "flex-start" },
-    bubbleUser: { borderRadius: 18, borderBottomRightRadius: 4, paddingHorizontal: 14, paddingVertical: 10, overflow: "hidden" },
+    bubbleUser: {
+      borderRadius: 18, borderBottomRightRadius: 4,
+      paddingHorizontal: 14, paddingVertical: 10, overflow: "hidden",
+    },
     bubbleAssist: {
-      borderRadius: 18, borderBottomLeftRadius: 4, paddingHorizontal: 14, paddingVertical: 10,
+      borderRadius: 18, borderBottomLeftRadius: 4,
+      paddingHorizontal: 14, paddingVertical: 10,
       backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
     },
     bubbleTextUser: { fontSize: 15, fontFamily: "Inter_400Regular", color: colors.primaryForeground, lineHeight: 22 },
     bubbleTextAssist: { fontSize: 15, fontFamily: "Inter_400Regular", color: colors.foreground, lineHeight: 22 },
-    inputWrap: {
-      flexDirection: "row", alignItems: "flex-end",
-      paddingHorizontal: 16, paddingTop: 10,
-      paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 8,
-      borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.background, gap: 10,
+    inputOuter: {
+      backgroundColor: colors.background,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: 10,
+      paddingHorizontal: 16,
+      paddingBottom: inputBarHeight,
+      gap: 0,
+    },
+    inputRow: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      gap: 10,
     },
     inputBox: {
-      flex: 1, backgroundColor: colors.card, borderRadius: 22,
-      borderWidth: 1, borderColor: colors.border,
-      paddingHorizontal: 16, paddingVertical: 10,
-      fontSize: 15, fontFamily: "Inter_400Regular", color: colors.foreground, maxHeight: 120,
+      flex: 1,
+      backgroundColor: colors.card,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      fontSize: 15,
+      fontFamily: "Inter_400Regular",
+      color: colors.foreground,
+      maxHeight: 120,
+      minHeight: 44,
     },
     sendBtn: {
-      width: 42, height: 42, borderRadius: 21,
+      width: 44, height: 44, borderRadius: 22,
       backgroundColor: colors.primary, alignItems: "center", justifyContent: "center",
     },
     sendBtnOff: { backgroundColor: colors.border },
@@ -115,7 +161,12 @@ export default function ChatScreen() {
     if (isUser) {
       return (
         <View style={[s.msgWrap, s.msgWrapUser]}>
-          <LinearGradient colors={theme.gradients.primary} style={s.bubbleUser} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+          <LinearGradient
+            colors={theme.gradients.primary}
+            style={s.bubbleUser}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+          >
             <Text style={s.bubbleTextUser}>{item.content}</Text>
           </LinearGradient>
         </View>
@@ -134,7 +185,12 @@ export default function ChatScreen() {
 
   return (
     <View style={s.container}>
-      <LinearGradient colors={theme.gradients.header as [string, string, ...string[]]} style={s.headerGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+      <LinearGradient
+        colors={theme.gradients.header as [string, string, ...string[]]}
+        style={s.headerGrad}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
         <View style={s.headerRow}>
           <View style={s.avatarBox}>
             <Feather name="cpu" size={20} color="#FFFFFF" />
@@ -143,36 +199,43 @@ export default function ChatScreen() {
             <Text style={s.headerName}>Nutrition AI</Text>
             <Text style={s.headerSub}>Indian food specialist</Text>
           </View>
+          {messages.length > 0 && (
+            <TouchableOpacity style={s.clearBtn} onPress={() => setMessages([])}>
+              <Feather name="trash-2" size={16} color="rgba(255,255,255,0.8)" />
+            </TouchableOpacity>
+          )}
         </View>
       </LinearGradient>
 
-      <KeyboardAvoidingView style={s.container} behavior="padding">
-        <FlatList
-          data={messages}
-          keyExtractor={(m) => m.id}
-          renderItem={renderMsg}
-          style={s.list}
-          contentContainerStyle={[s.listContent, messages.length === 0 && { flexGrow: 1 }]}
-          inverted={messages.length > 0}
-          keyboardDismissMode="interactive"
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={s.emptyWrap}>
-              <Text style={s.emptyTitle}>{t("ask_me_anything")}</Text>
-              <Text style={s.emptySub}>
-                Ask about Indian recipes, nutrition, calories, meal planning, and more.
-              </Text>
-              <Text style={s.suggestionsTitle}>Try asking</Text>
-              {SUGGESTIONS.map((sug) => (
-                <TouchableOpacity key={sug} style={s.suggestion} onPress={() => send(sug)}>
-                  <Text style={s.suggestionText}>{sug}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          }
-        />
-        <View style={s.inputWrap}>
+      <FlatList
+        ref={listRef}
+        data={messages}
+        keyExtractor={(m) => m.id}
+        renderItem={renderMsg}
+        style={s.list}
+        contentContainerStyle={[s.listContent, messages.length === 0 && { flexGrow: 1 }]}
+        inverted={true}
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={s.emptyWrap}>
+            <Text style={s.emptyTitle}>{t("ask_me_anything")}</Text>
+            <Text style={s.emptySub}>
+              Ask about Indian recipes, nutrition, calories, meal planning, and more.
+            </Text>
+            <Text style={s.suggestionsTitle}>Try asking</Text>
+            {SUGGESTIONS.map((sug) => (
+              <TouchableOpacity key={sug} style={s.suggestion} onPress={() => send(sug)}>
+                <Text style={s.suggestionText}>{sug}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        }
+      />
+
+      <View style={s.inputOuter}>
+        <View style={s.inputRow}>
           <TextInput
             ref={inputRef}
             style={s.inputBox}
@@ -194,7 +257,7 @@ export default function ChatScreen() {
             }
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </View>
   );
 }

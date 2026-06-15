@@ -1,9 +1,9 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import React, { useState } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
-import { getRecipeEmoji, getRecipeGradient } from "@/utils/recipeUtils";
+import { getRecipeImage, getRecipeGradient, getRecipeEmoji } from "@/utils/recipeUtils";
 import type { Recipe } from "@/contexts/AppContext";
 
 interface Props {
@@ -21,8 +21,10 @@ const DIFFICULTY_COLOR: Record<string, string> = {
 
 export function RecipeCard({ recipe, onPress, onSave, isSaved }: Props) {
   const colors = useColors();
+  const [imgError, setImgError] = useState(false);
   const [g1, g2] = getRecipeGradient(recipe.name, 0);
   const emoji = getRecipeEmoji(recipe.name);
+  const imageUrl = getRecipeImage(recipe.name, 0);
 
   const s = StyleSheet.create({
     card: {
@@ -33,7 +35,9 @@ export function RecipeCard({ recipe, onPress, onSave, isSaved }: Props) {
       marginBottom: 12,
       overflow: "hidden",
     },
-    imageWrap: { height: 150 },
+    imageWrap: { height: 160 },
+    image: { width: "100%", height: "100%" },
+    imageFallback: { flex: 1, alignItems: "center", justifyContent: "center" },
     saveBtn: {
       position: "absolute",
       top: 10,
@@ -41,12 +45,16 @@ export function RecipeCard({ recipe, onPress, onSave, isSaved }: Props) {
       width: 36,
       height: 36,
       borderRadius: 10,
-      backgroundColor: isSaved ? colors.primary : "rgba(0,0,0,0.35)",
+      backgroundColor: isSaved ? colors.primary : "rgba(0,0,0,0.45)",
       alignItems: "center",
       justifyContent: "center",
     },
-    emojiWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
-    emoji: { fontSize: 52 },
+    emojiOverlay: {
+      position: "absolute",
+      bottom: 10,
+      left: 12,
+      fontSize: 28,
+    },
     body: { padding: 14 },
     name: {
       fontSize: 17,
@@ -72,16 +80,28 @@ export function RecipeCard({ recipe, onPress, onSave, isSaved }: Props) {
 
   return (
     <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.85}>
-      <LinearGradient colors={[g1, g2]} style={s.imageWrap} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-        <View style={s.emojiWrap}>
-          <Text style={s.emoji}>{emoji}</Text>
-        </View>
+      <View style={s.imageWrap}>
+        {!imgError ? (
+          <Image
+            source={{ uri: imageUrl }}
+            style={s.image}
+            resizeMode="cover"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <LinearGradient colors={[g1, g2]} style={s.imageWrap} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+            <View style={s.imageFallback}>
+              <Text style={{ fontSize: 52 }}>{emoji}</Text>
+            </View>
+          </LinearGradient>
+        )}
+        <Text style={s.emojiOverlay}>{emoji}</Text>
         {onSave && (
           <TouchableOpacity style={s.saveBtn} onPress={onSave}>
             <Feather name="bookmark" size={17} color={isSaved ? colors.primaryForeground : "#fff"} />
           </TouchableOpacity>
         )}
-      </LinearGradient>
+      </View>
 
       <View style={s.body}>
         <Text style={s.name} numberOfLines={1}>{recipe.name}</Text>

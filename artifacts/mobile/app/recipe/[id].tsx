@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Platform, Dimensions,
+  TouchableOpacity, Platform, Dimensions, Image,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -11,7 +11,7 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/contexts/AppContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { getRecipeEmoji, getRecipeGradient } from "@/utils/recipeUtils";
+import { getRecipeImages, getRecipeGradient, getRecipeEmoji } from "@/utils/recipeUtils";
 
 const { width: SW } = Dimensions.get("window");
 const CARD_W = SW - 80;
@@ -19,6 +19,42 @@ const CARD_W = SW - 80;
 const DIFFICULTY_COLOR: Record<string, string> = {
   easy: "#40C057", medium: "#FFBA08", hard: "#FF6B35",
 };
+
+function RecipeImageSlide({ url, name, index }: { url: string; name: string; index: number }) {
+  const [err, setErr] = useState(false);
+  const [g1, g2] = getRecipeGradient(name, index);
+  const emoji = getRecipeEmoji(name);
+
+  const slideStyle: { width: number; height: number; borderRadius: number; marginLeft: number; marginRight: number; overflow: "hidden" } = {
+    width: CARD_W, height: 200, borderRadius: 20,
+    marginLeft: 20, marginRight: 8, overflow: "hidden",
+  };
+
+  if (!err) {
+    return (
+      <View style={slideStyle}>
+        <Image
+          source={{ uri: url }}
+          style={{ width: "100%", height: "100%" }}
+          resizeMode="cover"
+          onError={() => setErr(true)}
+        />
+      </View>
+    );
+  }
+  return (
+    <LinearGradient
+      colors={[g1, g2]}
+      style={slideStyle}
+      start={{ x: index % 2 === 0 ? 0 : 1, y: 0 }}
+      end={{ x: index % 2 === 0 ? 1 : 0, y: 1 }}
+    >
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ fontSize: 70 }}>{emoji}</Text>
+      </View>
+    </LinearGradient>
+  );
+}
 
 export default function RecipeDetailScreen() {
   const colors = useColors();
@@ -45,7 +81,7 @@ export default function RecipeDetailScreen() {
 
   const saved = isRecipeSaved(recipe.id);
   const diffColor = DIFFICULTY_COLOR[recipe.difficulty] ?? colors.accent;
-  const emoji = getRecipeEmoji(recipe.name);
+  const images = getRecipeImages(recipe.name);
 
   const handleSave = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -78,17 +114,7 @@ export default function RecipeDetailScreen() {
       alignItems: "center", justifyContent: "center",
     },
     navBtnActive: { backgroundColor: saved ? colors.primary : colors.card, borderColor: saved ? colors.primary : colors.border },
-    imagesWrap: { height: 200, marginBottom: 20 },
-    imageSlide: {
-      width: CARD_W, height: 200, borderRadius: 20,
-      marginLeft: 20, marginRight: 8,
-      alignItems: "center", justifyContent: "center",
-    },
-    slideEmoji: { fontSize: 70 },
-    slideDot: { fontSize: 10, color: "rgba(255,255,255,0.6)" },
-    dotsRow: { flexDirection: "row", justifyContent: "center", gap: 5, marginTop: -12, marginBottom: 12 },
-    dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.border },
-    dotActive: { backgroundColor: colors.primary, width: 16 },
+    imagesRow: { height: 200, marginBottom: 20 },
     name: { fontSize: 24, fontFamily: "Inter_700Bold", color: colors.foreground, paddingHorizontal: 20, marginBottom: 6 },
     desc: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.mutedForeground, paddingHorizontal: 20, lineHeight: 21, marginBottom: 16 },
     metaRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 20, marginBottom: 20 },
@@ -122,10 +148,8 @@ export default function RecipeDetailScreen() {
     },
     nutLabel: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.mutedForeground },
     nutVal: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground },
-    logBtn: {
-      marginHorizontal: 20, borderRadius: colors.radius, paddingVertical: 16,
-      flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    },
+    logGrad: { marginHorizontal: 20, borderRadius: colors.radius, paddingVertical: 16 },
+    logBtnInner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
     logBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: colors.primaryForeground },
     spacer: { height: Platform.OS === "web" ? 34 : insets.bottom + 24 },
   });
@@ -142,30 +166,18 @@ export default function RecipeDetailScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Multiple gradient image cards */}
+        {/* Real photo carousel with 3 images */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={s.imagesWrap}
-          pagingEnabled={false}
+          style={s.imagesRow}
           decelerationRate="fast"
           snapToInterval={CARD_W + 12}
           contentContainerStyle={{ paddingRight: 20 }}
         >
-          {[0, 1, 2].map((i) => {
-            const [c1, c2] = getRecipeGradient(recipe.name, i);
-            return (
-              <LinearGradient
-                key={i}
-                colors={[c1, c2]}
-                style={s.imageSlide}
-                start={{ x: i % 2 === 0 ? 0 : 1, y: 0 }}
-                end={{ x: i % 2 === 0 ? 1 : 0, y: 1 }}
-              >
-                <Text style={s.slideEmoji}>{emoji}</Text>
-              </LinearGradient>
-            );
-          })}
+          {images.map((url, i) => (
+            <RecipeImageSlide key={i} url={url} name={recipe.name} index={i} />
+          ))}
         </ScrollView>
 
         <Text style={s.name}>{recipe.name}</Text>
@@ -236,8 +248,13 @@ export default function RecipeDetailScreen() {
           ))}
         </View>
 
-        <LinearGradient colors={[colors.primary, colors.accent]} style={s.logBtn} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-          <TouchableOpacity onPress={handleLog} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <LinearGradient
+          colors={[colors.primary, colors.accent]}
+          style={s.logGrad}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+        >
+          <TouchableOpacity onPress={handleLog} style={s.logBtnInner}>
             <Feather name="plus-circle" size={18} color={colors.primaryForeground} />
             <Text style={s.logBtnText}>{t("log_this_meal")}</Text>
           </TouchableOpacity>
