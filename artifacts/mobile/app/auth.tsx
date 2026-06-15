@@ -105,7 +105,7 @@ export default function AuthScreen() {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={s.backBtn} onPress={() => { try { router.back(); } catch { router.replace("/"); } }}>
             <Feather name="arrow-left" size={20} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={s.title}>

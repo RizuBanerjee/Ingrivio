@@ -9,6 +9,7 @@ import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useApp } from "@/contexts/AppContext";
+import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
 import { CalorieRing } from "@/components/CalorieRing";
 import { MacroBars } from "@/components/MacroBars";
 
@@ -18,6 +19,7 @@ export default function HomeScreen() {
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const { profile, todayLog, addWater } = useApp();
+  const { user } = useFirebaseAuth();
 
   const consumed = todayLog.entries.reduce((s, e) => s + e.calories, 0);
   const protein = todayLog.entries.reduce((s, e) => s + e.protein, 0);
@@ -99,7 +101,7 @@ export default function HomeScreen() {
           end={{ x: 1, y: 1 }}
         >
           <Text style={s.greeting}>{t(greetKey)}</Text>
-          <Text style={s.name}>{(profile.name || "Namaste").split(" ")[0]}</Text>
+          <Text style={s.name}>{(profile.name || user?.displayName || "Namaste").split(" ")[0]}</Text>
           <Text style={s.date}>{dateStr}</Text>
         </LinearGradient>
 
