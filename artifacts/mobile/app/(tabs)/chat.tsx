@@ -79,7 +79,7 @@ export default function ChatScreen() {
     }
   };
 
-  const inputBarHeight = Platform.OS === "web" ? 34 : insets.bottom + 8;
+  const inputBarHeight = Platform.OS === "web" ? 100 : insets.bottom + 80;
 
   const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },

@@ -34,10 +34,10 @@ export default function AuthScreen() {
     try {
       if (mode === "login") {
         await signIn(email.trim(), password);
-        router.back();
+        router.replace("/");
       } else if (mode === "register") {
         await signUp(email.trim(), password, name.trim());
-        router.back();
+        router.replace("/");
       } else {
         await forgotPassword(email.trim());
       }

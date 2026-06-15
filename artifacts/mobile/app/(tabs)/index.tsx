@@ -99,7 +99,7 @@ export default function HomeScreen() {
           end={{ x: 1, y: 1 }}
         >
           <Text style={s.greeting}>{t(greetKey)}</Text>
-          <Text style={s.name}>{profile.name || "Namaste"}</Text>
+          <Text style={s.name}>{(profile.name || "Namaste").split(" ")[0]}</Text>
           <Text style={s.date}>{dateStr}</Text>
         </LinearGradient>
 
