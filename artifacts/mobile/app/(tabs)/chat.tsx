@@ -41,6 +41,7 @@ export default function ChatScreen() {
   const listRef = useRef<FlatList>(null);
 
   const uid = () => Date.now().toString() + Math.random().toString(36).substr(2, 6);
+  const [lastFailedMsg, setLastFailedMsg] = useState<string | null>(null);
 
   const send = async (text: string) => {
     if (!text.trim() || streaming) return;
@@ -51,6 +52,7 @@ export default function ChatScreen() {
     setMessages((p) => [{ id: assistantId, role: "assistant", content: "" }, userMsg, ...p]);
     setInput("");
     setStreaming(true);
+    setLastFailedMsg(text.trim());
 
     await streamChat(
       text.trim(), hist,
@@ -59,6 +61,7 @@ export default function ChatScreen() {
       ),
       () => {
         setStreaming(false);
+        setLastFailedMsg(null);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       },
       (err) => {
@@ -68,6 +71,12 @@ export default function ChatScreen() {
         setStreaming(false);
       }
     );
+  };
+
+  const retryLast = () => {
+    if (lastFailedMsg) {
+      send(lastFailedMsg);
+    }
   };
 
   const inputBarHeight = Platform.OS === "web" ? 34 : insets.bottom + 8;
@@ -172,12 +181,22 @@ export default function ChatScreen() {
         </View>
       );
     }
+    const isError = item.content.startsWith("Error:");
     return (
       <View style={[s.msgWrap, s.msgWrapAssist]}>
-        <View style={s.bubbleAssist}>
-          <Text style={s.bubbleTextAssist}>
+        <View style={[s.bubbleAssist, isError && { borderColor: colors.destructive }]}>
+          <Text style={[s.bubbleTextAssist, isError && { color: colors.destructive }]}>
             {item.content || (streaming ? "..." : "")}
           </Text>
+          {isError && lastFailedMsg && !streaming && (
+            <TouchableOpacity
+              onPress={retryLast}
+              style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8, paddingVertical: 4 }}
+            >
+              <Feather name="refresh-cw" size={13} color={colors.primary} />
+              <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: colors.primary }}>Retry</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     );

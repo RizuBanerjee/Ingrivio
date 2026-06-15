@@ -166,6 +166,15 @@ export default function RecipesScreen() {
         <View style={s.errorBox}>
           <Feather name="alert-circle" size={16} color={colors.destructive} />
           <Text style={s.errorText}>{error}</Text>
+          <TouchableOpacity
+            onPress={() => {
+              setError(null);
+              router.push("/(tabs)/scan");
+            }}
+            style={{ padding: 6, backgroundColor: colors.destructive + "20", borderRadius: 8 }}
+          >
+            <Feather name="refresh-cw" size={16} color={colors.destructive} />
+          </TouchableOpacity>
         </View>
       )}
 

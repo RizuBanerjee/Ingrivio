@@ -46,6 +46,7 @@ export default function ScanScreen() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [nutrition, setNutrition] = useState<NutritionResult | null>(null);
   const [scannedImageUri, setScannedImageUri] = useState<string | null>(null);
+  const [lastBase64, setLastBase64] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Track which modes have been analyzed for current image
   const [analyzedModes, setAnalyzedModes] = useState<Set<Mode>>(new Set());
@@ -87,6 +88,7 @@ export default function ScanScreen() {
 
       // New image: clear ALL previous results
       setScannedImageUri(uri);
+      setLastBase64(base64);
       setIngredients([]);
       setNutrition(null);
       setAnalyzedModes(new Set());
@@ -152,13 +154,15 @@ export default function ScanScreen() {
     }
   };
 
-  // Switch mode — if we have image but haven't analyzed this mode yet, analyze it now
-  // We'd need the base64 again for that. So we only re-analyze if user picks a new image.
-  // For switching, just show cached result or a "Scan to analyze" prompt.
+  // Switch mode — if we have image but haven't analyzed this mode yet, auto-analyze it now
   const switchMode = (m: Mode) => {
     setMode(m);
     setError(null);
     // Don't clear ingredients or nutrition — they persist across mode switches
+    // Auto-analyze the other mode if we have the base64
+    if (lastBase64 && !analyzedModes.has(m)) {
+      analyzeMode(m, lastBase64, analyzedModes);
+    }
   };
 
   const s = StyleSheet.create({
@@ -336,6 +340,18 @@ export default function ScanScreen() {
           <View style={s.errorBox}>
             <Feather name="alert-circle" size={18} color={colors.destructive} />
             <Text style={s.errorText}>{error}</Text>
+            <TouchableOpacity
+              onPress={() => {
+                if (lastBase64) {
+                  analyzeMode(mode, lastBase64, analyzedModes);
+                } else if (mode === "ingredients" && ingredients.length > 0) {
+                  handleGenerate();
+                }
+              }}
+              style={{ padding: 6, backgroundColor: colors.destructive + "20", borderRadius: 8 }}
+            >
+              <Feather name="refresh-cw" size={16} color={colors.destructive} />
+            </TouchableOpacity>
           </View>
         )}
 
@@ -370,7 +386,12 @@ export default function ScanScreen() {
                 </TouchableOpacity>
               </LinearGradient>
             </>
-          ) : scannedImageUri && !error ? null : (
+          ) : scannedImageUri && !error && !loading ? (
+            <View style={s.loadingBox}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={s.loadingText}>Detecting ingredients...</Text>
+            </View>
+          ) : (
             <View style={s.empty}>
               <Feather name="aperture" size={40} color={colors.border} />
               <Text style={s.emptyText}>Take a photo or choose from gallery{"\n"}to identify ingredients</Text>
@@ -412,13 +433,10 @@ export default function ScanScreen() {
                 </View>
               </View>
             </View>
-          ) : scannedImageUri && !error ? (
-            <View style={s.notYetBox}>
-              <Feather name="info" size={20} color={colors.mutedForeground} />
-              <Text style={s.notYetText}>
-                Nutrition hasn't been analyzed yet for this image.{"\n"}
-                Pick the same image again with Nutrition mode selected.
-              </Text>
+          ) : scannedImageUri && !error && !loading ? (
+            <View style={s.loadingBox}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={s.loadingText}>Analyzing nutrition...</Text>
             </View>
           ) : (
             <View style={s.empty}>
