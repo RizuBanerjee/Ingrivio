@@ -65,6 +65,18 @@ export interface NutritionResult {
   healthRating: string;
 }
 
+export interface IngredientNutrition {
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fats: number;
+  fiber: number;
+  sugar: number;
+  sodium: number;
+  serving: string;
+}
+
 export interface FoodEntry {
   id: string;
   name: string;
@@ -98,6 +110,10 @@ export async function analyzeNutrition(ingredientsOrImageBase64: string[] | stri
     ? { ingredients: ingredientsOrImageBase64 }
     : { imageBase64: ingredientsOrImageBase64 };
   return post<NutritionResult>("/api/ai/analyze-nutrition", body);
+}
+
+export async function getIngredientNutrition(ingredient: string): Promise<IngredientNutrition> {
+  return post<IngredientNutrition>("/api/ai/ingredient-nutrition", { ingredient });
 }
 
 export async function generateRecipes(

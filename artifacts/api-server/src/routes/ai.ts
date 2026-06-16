@@ -239,6 +239,44 @@ Analyze the food in this image and provide accurate nutrition information. For I
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  Per-Ingredient Nutrition (uses text-based AI — Groq/OpenRouter first)
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.post("/ai/ingredient-nutrition", async (req, res): Promise<void> => {
+  try {
+    const { ingredient } = req.body as { ingredient: string };
+    if (!ingredient || typeof ingredient !== "string") {
+      res.status(400).json({ error: "ingredient name required" });
+      return;
+    }
+
+    const ai = getAI();
+    const prompt = `${INDIAN_CONTEXT}
+
+You are a precise nutrition database. Provide accurate nutritional information for: ${ingredient}
+
+For the most common edible form of this ingredient (e.g., raw, cooked, or standard serving). Use standard USDA/Indian food database values. Be precise with the numbers. Return only valid JSON with no markdown:
+{"name":"${ingredient}","calories":42,"protein":2.8,"carbs":6.6,"fats":0.4,"fiber":2.6,"sugar":2.8,"sodium":33,"serving":"100g"}`;
+
+    const messages: AIMessage[] = [{ role: "user", content: prompt }];
+    const response = await ai.generateContent(messages);
+    try {
+      const parsed = parseJSON(response.text);
+      res.json({ ...parsed, _provider: response.provider });
+    } catch {
+      res.status(500).json({ error: "Could not parse ingredient nutrition", _provider: response.provider });
+    }
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes("not configured")) {
+      res.status(503).json({ error: "AI not configured. Add GROQ_API_KEY, OPENROUTER_API_KEY, or GEMINI_API_KEY in Secrets." });
+      return;
+    }
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to analyze ingredient nutrition", _provider: "none" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  Generate Recipes
 // ─────────────────────────────────────────────────────────────────────────────
 

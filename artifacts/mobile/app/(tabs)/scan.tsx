@@ -20,9 +20,9 @@ import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useApp } from "@/contexts/AppContext";
-import { analyzeIngredients, analyzeNutrition, generateRecipes } from "@/services/ai";
+import { analyzeIngredients, analyzeNutrition, generateRecipes, getIngredientNutrition } from "@/services/ai";
 import { logFoodScanned, logRecipeGenerated } from "@/firebase/analyticsClient";
-import type { Ingredient, NutritionResult } from "@/services/ai";
+import type { Ingredient, NutritionResult, IngredientNutrition } from "@/services/ai";
 
 type Mode = "ingredients" | "nutrition";
 
@@ -50,6 +50,10 @@ export default function ScanScreen() {
   const [error, setError] = useState<string | null>(null);
   // Track which modes have been analyzed for current image
   const [analyzedModes, setAnalyzedModes] = useState<Set<Mode>>(new Set());
+  // Per-ingredient nutrition: selected ingredient + its nutrition data
+  const [selectedIngredient, setSelectedIngredient] = useState<string | null>(null);
+  const [ingredientNutrition, setIngredientNutrition] = useState<Record<string, IngredientNutrition>>({});
+  const [loadingIngredient, setLoadingIngredient] = useState<string | null>(null);
   const [showMealPicker, setShowMealPicker] = useState(false);
   const [mealPickerFor, setMealPickerFor] = useState<"nutrition" | "recipe" | null>(null);
 
@@ -94,6 +98,9 @@ export default function ScanScreen() {
       setIngredients([]);
       setNutrition(null);
       setAnalyzedModes(new Set());
+      setSelectedIngredient(null);
+      setIngredientNutrition({});
+      setLoadingIngredient(null);
       setError(null);
       setLoading(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -105,6 +112,19 @@ export default function ScanScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchIngredientNutrition = async (name: string) => {
+    if (ingredientNutrition[name]) return; // already fetched
+    setLoadingIngredient(name);
+    try {
+      const data = await getIngredientNutrition(name);
+      setIngredientNutrition((prev) => ({ ...prev, [name]: data }));
+    } catch {
+      // silently fail — user can retry by tapping again
+    } finally {
+      setLoadingIngredient(null);
     }
   };
 
@@ -163,6 +183,7 @@ export default function ScanScreen() {
   const switchMode = (m: Mode) => {
     setMode(m);
     setError(null);
+    setSelectedIngredient(null);
     // Don't clear ingredients or nutrition — they persist across mode switches
     // Auto-analyze the other mode if we have the base64
     if (lastBase64 && !analyzedModes.has(m)) {
@@ -417,57 +438,95 @@ export default function ScanScreen() {
           )
         )}
 
-        {/* Nutrition results */}
+        {/* Nutrition results — per-ingredient clickable list */}
         {!loading && mode === "nutrition" && (
-          nutrition ? (
+          ingredients.length > 0 ? (
             <View>
-              <View style={s.nutCard}>
-                <LinearGradient
-                  colors={theme.gradients.primary}
-                  style={s.nutHeader}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                >
-                  <Text style={s.nutFood}>{nutrition.foodName}</Text>
-                  <Text style={s.nutCal}>{nutrition.calories} kcal per serving</Text>
-                </LinearGradient>
-                <View style={s.nutBody}>
-                  {([
-                    ["Protein", `${nutrition.protein}g`],
-                    ["Carbohydrates", `${nutrition.carbs}g`],
-                    ["Fats", `${nutrition.fats}g`],
-                    ["Fiber", `${nutrition.fiber}g`],
-                    ["Sugar", `${nutrition.sugar}g`],
-                    ["Sodium", `${nutrition.sodium}mg`],
-                  ] as [string, string][]).map(([label, value], i, arr) => (
-                    <View key={label} style={[s.nutRow, i === arr.length - 1 && { borderBottomWidth: 0 }]}>
-                      <Text style={s.nutLabel}>{label}</Text>
-                      <Text style={s.nutValue}>{value}</Text>
-                    </View>
-                  ))}
-                  <View style={[s.ratingBadge, { backgroundColor: (RATING_COLOR[nutrition.healthRating] ?? colors.accent) + "20" }]}>
-                    <Text style={[s.ratingText, { color: RATING_COLOR[nutrition.healthRating] ?? colors.accent }]}>
-                      {nutrition.healthRating} — score {nutrition.nutritionScore}/100
-                    </Text>
+              <Text style={s.sectionTitle}>{t("detected")} ({ingredients.length} {t("ingredients_detected")})</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginHorizontal: 20, marginBottom: 12 }}>
+                Tap an ingredient to see its nutrition
+              </Text>
+              {ingredients.map((ing, idx) => {
+                const isExpanded = selectedIngredient === ing.name;
+                const nut = ingredientNutrition[ing.name];
+                const isLoading = loadingIngredient === ing.name;
+                return (
+                  <View key={idx}>
+                    <TouchableOpacity
+                      style={s.ingredientChip}
+                      onPress={() => {
+                        if (isExpanded) {
+                          setSelectedIngredient(null);
+                        } else {
+                          setSelectedIngredient(ing.name);
+                          fetchIngredientNutrition(ing.name);
+                        }
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[s.confDot, { backgroundColor: confColor(ing.confidence) }]} />
+                      <Text style={s.chipName}>{ing.name}</Text>
+                      {ing.quantity && <Text style={s.chipQty}>{ing.quantity}</Text>}
+                      <Text style={{ fontSize: 11, color: colors.mutedForeground }}>
+                        {Math.round(ing.confidence * 100)}%
+                      </Text>
+                      <Feather name={isExpanded ? "chevron-up" : "chevron-down"} size={14} color={colors.mutedForeground} style={{ marginLeft: 4 }} />
+                    </TouchableOpacity>
+                    {/* Expanded nutrition panel */}
+                    {isExpanded && (
+                      <View style={{
+                        backgroundColor: colors.card,
+                        borderRadius: colors.radius,
+                        marginHorizontal: 20,
+                        marginBottom: 10,
+                        padding: 14,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}>
+                        {isLoading ? (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 }}>
+                            <ActivityIndicator size="small" color={colors.primary} />
+                            <Text style={{ fontSize: 13, color: colors.mutedForeground }}>Loading nutrition...</Text>
+                          </View>
+                        ) : nut ? (
+                          <View>
+                            <Text style={{
+                              fontSize: 12, fontFamily: "Inter_600SemiBold",
+                              color: colors.mutedForeground, marginBottom: 10,
+                              textTransform: "uppercase", letterSpacing: 0.5,
+                            }}>
+                              Per {nut.serving || "100g"}
+                            </Text>
+                            {[
+                              ["Calories", `${nut.calories} kcal`],
+                              ["Protein", `${nut.protein}g`],
+                              ["Carbs", `${nut.carbs}g`],
+                              ["Fats", `${nut.fats}g`],
+                              ["Fiber", `${nut.fiber}g`],
+                              ["Sugar", `${nut.sugar}g`],
+                              ["Sodium", `${nut.sodium}mg`],
+                            ].map(([label, value], i) => (
+                              <View key={label} style={{
+                                flexDirection: "row", justifyContent: "space-between",
+                                paddingVertical: 7,
+                                borderBottomWidth: i < 6 ? 1 : 0, borderBottomColor: colors.border,
+                              }}>
+                                <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: colors.mutedForeground }}>{label}</Text>
+                                <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>{value}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        ) : (
+                          <Text style={{ fontSize: 13, color: colors.mutedForeground, textAlign: "center", paddingVertical: 8 }}>
+                            Could not load nutrition. Tap to retry.
+                          </Text>
+                        )}
+                      </View>
+                    )}
                   </View>
-                </View>
-              </View>
-              <TouchableOpacity
-                style={s.genBtn}
-                onPress={() => { setMealPickerFor("nutrition"); setShowMealPicker(true); }}
-                activeOpacity={0.7}
-              >
-                <LinearGradient
-                  colors={theme.gradients.primary}
-                  style={StyleSheet.absoluteFill}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                />
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Feather name="plus-circle" size={18} color={colors.primaryForeground} />
-                  <Text style={s.genBtnText}>Log This Meal</Text>
-                </View>
-              </TouchableOpacity>
+                );
+              })}
             </View>
           ) : scannedImageUri && !error && !loading ? (
             <View style={s.loadingBox}>
