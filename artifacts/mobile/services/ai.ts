@@ -65,6 +65,17 @@ export interface NutritionResult {
   healthRating: string;
 }
 
+export interface FoodEntry {
+  id: string;
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fats: number;
+  meal: "breakfast" | "lunch" | "dinner" | "snack";
+  time: string;
+}
+
 export interface MealPlanDay {
   day: string;
   meals: {
@@ -82,8 +93,11 @@ export async function analyzeIngredients(imageBase64: string): Promise<Ingredien
   return result.ingredients ?? [];
 }
 
-export async function analyzeNutrition(imageBase64: string): Promise<NutritionResult> {
-  return post<NutritionResult>("/api/ai/analyze-nutrition", { imageBase64 });
+export async function analyzeNutrition(ingredientsOrImageBase64: string[] | string): Promise<NutritionResult> {
+  const body = Array.isArray(ingredientsOrImageBase64)
+    ? { ingredients: ingredientsOrImageBase64 }
+    : { imageBase64: ingredientsOrImageBase64 };
+  return post<NutritionResult>("/api/ai/analyze-nutrition", body);
 }
 
 export async function generateRecipes(
@@ -107,6 +121,55 @@ export async function generateMealPlan(opts: {
 }): Promise<MealPlanDay[]> {
   const result = await post<{ plan: MealPlanDay[] }>("/api/ai/meal-plan", opts);
   return result.plan ?? [];
+}
+
+export async function getDailyLog(userId: string, date: string): Promise<{
+  date: string;
+  userId: string;
+  entries: FoodEntry[];
+  water: number;
+  totalCalories: number;
+  totalProtein: number;
+  totalCarbs: number;
+  totalFats: number;
+}> {
+  const res = await fetch(`${getBase()}/api/daily-logs?userId=${encodeURIComponent(userId)}&date=${encodeURIComponent(date)}`);
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({ error: "Request failed" }))) as { error: string };
+    throw new Error(err.error ?? "Request failed");
+  }
+  return res.json() as Promise<{
+    date: string;
+    userId: string;
+    entries: FoodEntry[];
+    water: number;
+    totalCalories: number;
+    totalProtein: number;
+    totalCarbs: number;
+    totalFats: number;
+  }>;
+}
+
+export async function saveDailyLog(body: {
+  userId: string;
+  date: string;
+  entries: FoodEntry[];
+  water: number;
+  totalCalories: number;
+  totalProtein: number;
+  totalCarbs: number;
+  totalFats: number;
+}): Promise<{ success: boolean }> {
+  const res = await fetch(`${getBase()}/api/daily-logs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({ error: "Request failed" }))) as { error: string };
+    throw new Error(err.error ?? "Request failed");
+  }
+  return res.json() as Promise<{ success: boolean }>;
 }
 
 export async function streamChat(

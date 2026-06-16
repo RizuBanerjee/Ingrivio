@@ -1,5 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { getDailyLog, saveDailyLog } from "@/services/ai";
+import { getAuth } from "firebase/auth";
+import { getApp } from "firebase/app";
 
 export interface UserProfile {
   name: string;
@@ -96,6 +99,7 @@ interface AppContextType {
   isRecipeSaved: (id: string) => boolean;
   lastNutrition: NutritionResult | null;
   setLastNutrition: (n: NutritionResult | null) => void;
+  getLogForDate: (date: string) => Promise<DailyLog | null>;
 }
 
 const DEFAULT_PROFILE: UserProfile = {
@@ -118,6 +122,7 @@ const todayDate = () => new Date().toISOString().split("T")[0];
 const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [todayLog, setTodayLog] = useState<DailyLog>({ date: todayDate(), entries: [], water: 0 });
   const [scannedIngredients, setScannedIngredients] = useState<Ingredient[]>([]);
@@ -125,6 +130,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [savedRecipes, setSavedRecipes] = useState<Recipe[]>([]);
   const [lastNutrition, setLastNutrition] = useState<NutritionResult | null>(null);
 
+  // Track Firebase auth changes
+  useEffect(() => {
+    try {
+      const auth = getAuth(getApp());
+      const unsub = auth.onAuthStateChanged((u) => {
+        setUserId(u ? u.uid : null);
+      });
+      return () => unsub();
+    } catch {
+      return;
+    }
+  }, []);
+
+  // Load from AsyncStorage (local) and optionally sync from DB
   useEffect(() => {
     (async () => {
       try {
@@ -136,9 +155,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (p) setProfile({ ...DEFAULT_PROFILE, ...JSON.parse(p) });
         if (log) setTodayLog(JSON.parse(log));
         if (saved) setSavedRecipes(JSON.parse(saved));
+
+        // If logged in, try to sync today's log from DB
+        if (userId) {
+          try {
+            const dbLog = await getDailyLog(userId, todayDate());
+            if (dbLog && dbLog.entries.length > 0) {
+              const merged: DailyLog = {
+                date: dbLog.date,
+                entries: dbLog.entries,
+                water: dbLog.water,
+              };
+              setTodayLog(merged);
+              AsyncStorage.setItem(`ingrivio_log_${todayDate()}`, JSON.stringify(merged)).catch(() => {});
+            }
+          } catch {}
+        }
       } catch {}
     })();
-  }, []);
+  }, [userId]);
 
   const updateProfile = useCallback((partial: Partial<UserProfile>) => {
     setProfile((prev) => {
@@ -147,6 +182,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return next;
     });
   }, []);
+
+  const syncToDB = useCallback(
+    async (log: DailyLog) => {
+      if (!userId) return;
+      const totalCalories = log.entries.reduce((s, e) => s + e.calories, 0);
+      const totalProtein = log.entries.reduce((s, e) => s + e.protein, 0);
+      const totalCarbs = log.entries.reduce((s, e) => s + e.carbs, 0);
+      const totalFats = log.entries.reduce((s, e) => s + e.fats, 0);
+      try {
+        await saveDailyLog({
+          userId,
+          date: log.date,
+          entries: log.entries,
+          water: log.water,
+          totalCalories,
+          totalProtein,
+          totalCarbs,
+          totalFats,
+        });
+      } catch {}
+    },
+    [userId]
+  );
 
   const addFoodEntry = useCallback((entry: Omit<FoodEntry, "id" | "time">) => {
     setTodayLog((prev) => {
@@ -166,6 +224,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  // Sync to DB whenever todayLog changes
+  useEffect(() => {
+    if (todayLog.entries.length > 0 || todayLog.water > 0) {
+      syncToDB(todayLog);
+    }
+  }, [todayLog, syncToDB]);
+
   const addWater = useCallback((glasses: number) => {
     setTodayLog((prev) => {
       const next = { ...prev, water: prev.water + glasses };
@@ -173,6 +238,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return next;
     });
   }, []);
+
+  const getLogForDate = useCallback(
+    async (date: string): Promise<DailyLog | null> => {
+      // Try DB first if logged in
+      if (userId) {
+        try {
+          const dbLog = await getDailyLog(userId, date);
+          if (dbLog && dbLog.entries.length > 0) {
+            return { date: dbLog.date, entries: dbLog.entries, water: dbLog.water };
+          }
+        } catch {}
+      }
+      // Fallback to local AsyncStorage
+      try {
+        const local = await AsyncStorage.getItem(`ingrivio_log_${date}`);
+        if (local) return JSON.parse(local);
+      } catch {}
+      return null;
+    },
+    [userId]
+  );
 
   const saveRecipe = useCallback((recipe: Recipe) => {
     setSavedRecipes((prev) => {
@@ -214,6 +300,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         isRecipeSaved,
         lastNutrition,
         setLastNutrition,
+        getLogForDate,
       }}
     >
       {children}

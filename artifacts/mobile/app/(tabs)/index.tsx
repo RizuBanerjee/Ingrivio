@@ -1,5 +1,5 @@
-import React from "react";
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform } from "react-native";
+import React, { useState } from "react";
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform, Dimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,6 +13,8 @@ import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
 import { CalorieRing } from "@/components/CalorieRing";
 import { MacroBars } from "@/components/MacroBars";
 
+const { width: SCREEN_W } = Dimensions.get("window");
+
 export default function HomeScreen() {
   const colors = useColors();
   const { theme } = useTheme();
@@ -20,6 +22,10 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { profile, todayLog, addWater } = useApp();
   const { user } = useFirebaseAuth();
+
+  const [historyView, setHistoryView] = useState<"daily" | "weekly" | "monthly">("daily");
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showCalendar, setShowCalendar] = useState(false);
 
   const consumed = todayLog.entries.reduce((s, e) => s + e.calories, 0);
   const protein = todayLog.entries.reduce((s, e) => s + e.protein, 0);
@@ -38,6 +44,51 @@ export default function HomeScreen() {
     dinner: "moon-outline",
     snack: "cafe-outline",
   };
+
+  // Calendar helpers
+  const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+  const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
+  const today = new Date();
+  const calMonth = selectedDate.getMonth();
+  const calYear = selectedDate.getFullYear();
+  const numDays = daysInMonth(calYear, calMonth);
+  const startDay = firstDayOfMonth(calYear, calMonth);
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  const isSameDay = (d1: Date, d2: Date) =>
+    d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
+
+  const isToday = (day: number) => isSameDay(new Date(calYear, calMonth, day), today);
+  const isSelected = (day: number) => isSameDay(new Date(calYear, calMonth, day), selectedDate);
+
+  const navigateMonth = (dir: number) => {
+    setSelectedDate(new Date(calYear, calMonth + dir, 1));
+  };
+
+  const getWeeklyData = () => {
+    const data = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const dateKey = d.toISOString().split("T")[0];
+      // Placeholder — would fetch from DB
+      data.push({ date: d, calories: Math.round(Math.random() * 800 + 1200), label: dayNames[d.getDay()] });
+    }
+    return data;
+  };
+
+  const getMonthlyData = () => {
+    const data = [];
+    for (let i = 0; i < 4; i++) {
+      data.push({ week: `Week ${i + 1}`, calories: Math.round(Math.random() * 3000 + 10000) });
+    }
+    return data;
+  };
+
+  const weeklyData = getWeeklyData();
+  const monthlyData = getMonthlyData();
+  const maxWeeklyCal = Math.max(...weeklyData.map(d => d.calories), 1);
+  const maxMonthlyCal = Math.max(...monthlyData.map(d => d.calories), 1);
 
   const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
@@ -178,6 +229,168 @@ export default function HomeScreen() {
               <Feather name="plus" size={18} color={colors.primaryForeground} />
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Diet History Tracking */}
+        <View style={s.card}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <Text style={s.cardTitle}>Diet History</Text>
+            <TouchableOpacity
+              style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+              onPress={() => setShowCalendar(!showCalendar)}
+            >
+              <Feather name="calendar" size={14} color={colors.primary} />
+              <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: colors.primary }}>
+                {showCalendar ? "Hide" : "Calendar"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* View toggle buttons */}
+          <View style={{ flexDirection: "row", gap: 6, marginBottom: 14 }}>
+            {(["daily", "weekly", "monthly"] as const).map((v) => (
+              <TouchableOpacity
+                key={v}
+                style={{
+                  flex: 1, paddingVertical: 8, borderRadius: colors.radius - 6,
+                  backgroundColor: historyView === v ? colors.primary : colors.secondary,
+                  alignItems: "center",
+                }}
+                onPress={() => setHistoryView(v)}
+              >
+                <Text style={{
+                  fontSize: 12, fontFamily: "Inter_600SemiBold",
+                  color: historyView === v ? colors.primaryForeground : colors.mutedForeground,
+                  textTransform: "capitalize",
+                }}>{v}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Calendar view */}
+          {showCalendar && (
+            <View style={{ marginBottom: 14 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <TouchableOpacity onPress={() => navigateMonth(-1)}>
+                  <Feather name="chevron-left" size={18} color={colors.primary} />
+                </TouchableOpacity>
+                <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>
+                  {selectedDate.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
+                </Text>
+                <TouchableOpacity onPress={() => navigateMonth(1)}>
+                  <Feather name="chevron-right" size={18} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                {dayNames.map((d) => (
+                  <View key={d} style={{ width: (SCREEN_W - 72) / 7, alignItems: "center", paddingVertical: 4 }}>
+                    <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>{d}</Text>
+                  </View>
+                ))}
+                {Array.from({ length: startDay }).map((_, i) => (
+                  <View key={`empty-${i}`} style={{ width: (SCREEN_W - 72) / 7, height: 36 }} />
+                ))}
+                {Array.from({ length: numDays }).map((_, i) => {
+                  const day = i + 1;
+                  const todayFlag = isToday(day);
+                  const selectedFlag = isSelected(day);
+                  return (
+                    <TouchableOpacity
+                      key={day}
+                      style={{
+                        width: (SCREEN_W - 72) / 7, height: 36, alignItems: "center", justifyContent: "center",
+                        borderRadius: 18,
+                        backgroundColor: selectedFlag ? colors.primary : todayFlag ? colors.primary + "30" : "transparent",
+                      }}
+                      onPress={() => setSelectedDate(new Date(calYear, calMonth, day))}
+                    >
+                      <Text style={{
+                        fontSize: 13, fontFamily: "Inter_500Medium",
+                        color: selectedFlag ? colors.primaryForeground : todayFlag ? colors.primary : colors.foreground,
+                      }}>{day}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
+          {/* Graph views */}
+          {historyView === "weekly" && (
+            <View>
+              <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 8 }}>
+                Calories (last 7 days)
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8, height: 120, paddingBottom: 4 }}>
+                {weeklyData.map((d, i) => (
+                  <View key={i} style={{ flex: 1, alignItems: "center" }}>
+                    <View style={{
+                      width: "100%", height: Math.max((d.calories / maxWeeklyCal) * 100, 4),
+                      backgroundColor: d.calories > profile.calorieGoal ? colors.destructive : colors.primary,
+                      borderRadius: 4, opacity: 0.8,
+                    }} />
+                    <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginTop: 4 }}>
+                      {d.label.slice(0, 3)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {historyView === "monthly" && (
+            <View>
+              <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 8 }}>
+                Weekly Calories (this month)
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 12, height: 120, paddingBottom: 4 }}>
+                {monthlyData.map((d, i) => (
+                  <View key={i} style={{ flex: 1, alignItems: "center" }}>
+                    <View style={{
+                      width: "100%", height: Math.max((d.calories / maxMonthlyCal) * 100, 4),
+                      backgroundColor: colors.primary, borderRadius: 4, opacity: 0.8,
+                    }} />
+                    <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginTop: 4 }}>
+                      {d.week}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {historyView === "daily" && (
+            <View>
+              <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 8 }}>
+                {selectedDate.toLocaleDateString("en-IN", { weekday: "long", month: "short", day: "numeric" })}
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 }}>
+                <View style={{ flex: 1, height: 8, backgroundColor: colors.secondary, borderRadius: 4 }}>
+                  <View style={{
+                    width: `${Math.min((consumed / profile.calorieGoal) * 100, 100)}%`,
+                    height: 8, backgroundColor: colors.primary, borderRadius: 4,
+                  }} />
+                </View>
+                <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>
+                  {consumed} / {profile.calorieGoal} kcal
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <View style={{ flex: 1, backgroundColor: colors.secondary, borderRadius: 8, padding: 8, alignItems: "center" }}>
+                  <Text style={{ fontSize: 10, color: colors.mutedForeground }}>Protein</Text>
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.foreground }}>{protein}g</Text>
+                </View>
+                <View style={{ flex: 1, backgroundColor: colors.secondary, borderRadius: 8, padding: 8, alignItems: "center" }}>
+                  <Text style={{ fontSize: 10, color: colors.mutedForeground }}>Carbs</Text>
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.foreground }}>{carbs}g</Text>
+                </View>
+                <View style={{ flex: 1, backgroundColor: colors.secondary, borderRadius: 8, padding: 8, alignItems: "center" }}>
+                  <Text style={{ fontSize: 10, color: colors.mutedForeground }}>Fats</Text>
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.foreground }}>{fats}g</Text>
+                </View>
+              </View>
+            </View>
+          )}
         </View>
 
         <View style={s.spacer} />

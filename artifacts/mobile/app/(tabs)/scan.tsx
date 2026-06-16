@@ -38,7 +38,7 @@ export default function ScanScreen() {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
-  const { scannedIngredients, setScannedIngredients, setGeneratedRecipes, setLastNutrition } = useApp();
+  const { scannedIngredients, setScannedIngredients, setGeneratedRecipes, setLastNutrition, addFoodEntry } = useApp();
 
   const [mode, setMode] = useState<Mode>("ingredients");
   const [loading, setLoading] = useState(false);
@@ -50,6 +50,8 @@ export default function ScanScreen() {
   const [error, setError] = useState<string | null>(null);
   // Track which modes have been analyzed for current image
   const [analyzedModes, setAnalyzedModes] = useState<Set<Mode>>(new Set());
+  const [showMealPicker, setShowMealPicker] = useState(false);
+  const [mealPickerFor, setMealPickerFor] = useState<"nutrition" | "recipe" | null>(null);
 
   const pickImage = async (useCamera: boolean) => {
     try {
@@ -139,7 +141,10 @@ export default function ScanScreen() {
         setScannedIngredients(items);
         setGeneratedRecipes([]);
       } else {
-        const res = await analyzeNutrition(base64);
+        // Nutrition analysis: use ingredients if available, else fall back to image
+        const res = ingredients.length > 0
+          ? await analyzeNutrition(ingredients.map((i: Ingredient) => i.name))
+          : await analyzeNutrition(base64);
         logFoodScanned("nutrition");
         setNutrition(res);
         setLastNutrition(res);
@@ -370,21 +375,34 @@ export default function ScanScreen() {
                   </Text>
                 </View>
               ))}
-              <LinearGradient
-                colors={theme.gradients.primary}
+              <TouchableOpacity
                 style={s.genBtn}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
+                onPress={handleGenerate}
+                disabled={loading}
+                activeOpacity={0.7}
               >
-                <TouchableOpacity
-                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-                  onPress={handleGenerate}
-                  disabled={loading}
-                >
+                <LinearGradient
+                  colors={theme.gradients.primary}
+                  style={StyleSheet.absoluteFill}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                />
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <Feather name="book-open" size={18} color={colors.primaryForeground} />
                   <Text style={s.genBtnText}>{t("generate_recipes")}</Text>
-                </TouchableOpacity>
-              </LinearGradient>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.genBtn, { backgroundColor: colors.secondary, borderWidth: 1, borderColor: colors.border }]} 
+                onPress={handleGenerate}
+                disabled={loading}
+                activeOpacity={0.7}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Feather name="refresh-cw" size={18} color={colors.primary} />
+                  <Text style={[s.genBtnText, { color: colors.primary }]}>Regenerate Recipes</Text>
+                </View>
+              </TouchableOpacity>
             </>
           ) : scannedImageUri && !error && !loading ? (
             <View style={s.loadingBox}>
@@ -402,36 +420,54 @@ export default function ScanScreen() {
         {/* Nutrition results */}
         {!loading && mode === "nutrition" && (
           nutrition ? (
-            <View style={s.nutCard}>
-              <LinearGradient
-                colors={theme.gradients.primary}
-                style={s.nutHeader}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                <Text style={s.nutFood}>{nutrition.foodName}</Text>
-                <Text style={s.nutCal}>{nutrition.calories} kcal per serving</Text>
-              </LinearGradient>
-              <View style={s.nutBody}>
-                {([
-                  ["Protein", `${nutrition.protein}g`],
-                  ["Carbohydrates", `${nutrition.carbs}g`],
-                  ["Fats", `${nutrition.fats}g`],
-                  ["Fiber", `${nutrition.fiber}g`],
-                  ["Sugar", `${nutrition.sugar}g`],
-                  ["Sodium", `${nutrition.sodium}mg`],
-                ] as [string, string][]).map(([label, value], i, arr) => (
-                  <View key={label} style={[s.nutRow, i === arr.length - 1 && { borderBottomWidth: 0 }]}>
-                    <Text style={s.nutLabel}>{label}</Text>
-                    <Text style={s.nutValue}>{value}</Text>
+            <View>
+              <View style={s.nutCard}>
+                <LinearGradient
+                  colors={theme.gradients.primary}
+                  style={s.nutHeader}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <Text style={s.nutFood}>{nutrition.foodName}</Text>
+                  <Text style={s.nutCal}>{nutrition.calories} kcal per serving</Text>
+                </LinearGradient>
+                <View style={s.nutBody}>
+                  {([
+                    ["Protein", `${nutrition.protein}g`],
+                    ["Carbohydrates", `${nutrition.carbs}g`],
+                    ["Fats", `${nutrition.fats}g`],
+                    ["Fiber", `${nutrition.fiber}g`],
+                    ["Sugar", `${nutrition.sugar}g`],
+                    ["Sodium", `${nutrition.sodium}mg`],
+                  ] as [string, string][]).map(([label, value], i, arr) => (
+                    <View key={label} style={[s.nutRow, i === arr.length - 1 && { borderBottomWidth: 0 }]}>
+                      <Text style={s.nutLabel}>{label}</Text>
+                      <Text style={s.nutValue}>{value}</Text>
+                    </View>
+                  ))}
+                  <View style={[s.ratingBadge, { backgroundColor: (RATING_COLOR[nutrition.healthRating] ?? colors.accent) + "20" }]}>
+                    <Text style={[s.ratingText, { color: RATING_COLOR[nutrition.healthRating] ?? colors.accent }]}>
+                      {nutrition.healthRating} — score {nutrition.nutritionScore}/100
+                    </Text>
                   </View>
-                ))}
-                <View style={[s.ratingBadge, { backgroundColor: (RATING_COLOR[nutrition.healthRating] ?? colors.accent) + "20" }]}>
-                  <Text style={[s.ratingText, { color: RATING_COLOR[nutrition.healthRating] ?? colors.accent }]}>
-                    {nutrition.healthRating} — score {nutrition.nutritionScore}/100
-                  </Text>
                 </View>
               </View>
+              <TouchableOpacity
+                style={s.genBtn}
+                onPress={() => { setMealPickerFor("nutrition"); setShowMealPicker(true); }}
+                activeOpacity={0.7}
+              >
+                <LinearGradient
+                  colors={theme.gradients.primary}
+                  style={StyleSheet.absoluteFill}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                />
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Feather name="plus-circle" size={18} color={colors.primaryForeground} />
+                  <Text style={s.genBtnText}>Log This Meal</Text>
+                </View>
+              </TouchableOpacity>
             </View>
           ) : scannedImageUri && !error && !loading ? (
             <View style={s.loadingBox}>
@@ -444,6 +480,50 @@ export default function ScanScreen() {
               <Text style={s.emptyText}>Take a photo or choose from gallery{"\n"}to analyze nutrition</Text>
             </View>
           )
+        )}
+
+        {/* Meal Type Picker Modal */}
+        {showMealPicker && (
+          <View style={{
+            position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", zIndex: 100,
+          }}>
+            <View style={{
+              backgroundColor: colors.card, borderRadius: colors.radius, marginHorizontal: 30,
+              padding: 20, width: "80%", borderWidth: 1, borderColor: colors.border,
+            }}>
+              <Text style={{
+                fontSize: 18, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 16, textAlign: "center",
+              }}>Log as which meal?</Text>
+              {(["breakfast", "lunch", "dinner", "snack"] as const).map((mealType) => (
+                <TouchableOpacity
+                  key={mealType}
+                  style={{
+                    paddingVertical: 14, paddingHorizontal: 16, borderRadius: colors.radius - 6,
+                    backgroundColor: colors.secondary, marginBottom: 10, alignItems: "center",
+                  }}
+                  onPress={() => {
+                    setShowMealPicker(false);
+                    const entry = nutrition
+                      ? { name: nutrition.foodName, calories: nutrition.calories, protein: nutrition.protein, carbs: nutrition.carbs, fats: nutrition.fats, meal: mealType }
+                      : { name: "Scanned ingredients", calories: 0, protein: 0, carbs: 0, fats: 0, meal: mealType };
+                    addFoodEntry(entry);
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.primary, textTransform: "capitalize",
+                  }}>{mealType}</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={{ paddingVertical: 12, alignItems: "center" }}
+                onPress={() => setShowMealPicker(false)}
+              >
+                <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         )}
 
         <View style={s.spacer} />

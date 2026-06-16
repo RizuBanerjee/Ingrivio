@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createAIOrchestrator, type AIMessage } from "../lib/ai-providers";
+import { createAIOrchestrator, createVisionOrchestrator, type AIMessage } from "../lib/ai-providers";
 
 // Map common Indian dish names to real food images
 const RECIPE_IMAGE_MAP: Record<string, string> = {
@@ -127,12 +127,20 @@ const router = Router();
 // ─────────────────────────────────────────────────────────────────────────────
 
 let aiOrchestrator: ReturnType<typeof createAIOrchestrator> | null = null;
+let visionOrchestrator: ReturnType<typeof createVisionOrchestrator> | null = null;
 
 function getAI() {
   if (!aiOrchestrator) {
     aiOrchestrator = createAIOrchestrator();
   }
   return aiOrchestrator;
+}
+
+function getVisionAI() {
+  if (!visionOrchestrator) {
+    visionOrchestrator = createVisionOrchestrator();
+  }
+  return visionOrchestrator;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -147,13 +155,13 @@ router.post("/ai/analyze-ingredients", async (req, res): Promise<void> => {
       return;
     }
 
-    const ai = getAI();
+    const ai = getVisionAI();
     const messages: AIMessage[] = [
       {
         role: "user",
         content: `${INDIAN_CONTEXT}
 
-Identify all visible food ingredients in this image, with a focus on Indian foods and ingredients if present. Return only valid JSON with no markdown:
+Look at this image carefully. Identify ALL visible food ingredients, vegetables, spices, and items. Do NOT guess or make up items not clearly visible. Be very accurate — only list what you actually see. Return only valid JSON with no markdown:
 {"ingredients":[{"name":"string","quantity":"string or null","confidence":0.95}]}`,
         imageData: { base64: imageBase64, mimeType: "image/jpeg" },
       },
@@ -161,13 +169,18 @@ Identify all visible food ingredients in this image, with a focus on Indian food
 
     const response = await ai.generateContent(messages);
     try {
-      res.json({ ...parseJSON(response.text), _provider: response.provider });
+      const parsed = parseJSON(response.text);
+      res.json({ ...parsed, _provider: response.provider });
     } catch {
       res.json({ ingredients: [], _provider: response.provider });
     }
   } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes("Gemini API key required")) {
+      res.status(503).json({ error: "Gemini API key required for image analysis. Set GEMINI_API_KEY in Secrets." });
+      return;
+    }
     if (err instanceof Error && err.message.includes("not configured")) {
-      res.status(503).json({ error: "AI not configured. Add GEMINI_API_KEY, GROQ_API_KEY, or OPENROUTER_API_KEY in Secrets." });
+      res.status(503).json({ error: "AI not configured. Add GEMINI_API_KEY in Secrets." });
       return;
     }
     req.log.error(err);
@@ -176,28 +189,34 @@ Identify all visible food ingredients in this image, with a focus on Indian food
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Analyze Nutrition
+//  Analyze Nutrition — from ingredients list, not image hallucination
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.post("/ai/analyze-nutrition", async (req, res): Promise<void> => {
   try {
-    const { imageBase64 } = req.body as { imageBase64: string };
-    if (!imageBase64) {
-      res.status(400).json({ error: "imageBase64 required" });
+    const { ingredients, imageBase64 } = req.body as { ingredients?: string[]; imageBase64?: string };
+    if (!ingredients?.length && !imageBase64) {
+      res.status(400).json({ error: "ingredients or imageBase64 required" });
       return;
     }
 
-    const ai = getAI();
-    const messages: AIMessage[] = [
-      {
-        role: "user",
-        content: `${INDIAN_CONTEXT}
+    // If ingredients are provided, use text-based analysis (no image needed)
+    const ai = ingredients?.length ? getAI() : getVisionAI();
+    const prompt = ingredients?.length
+      ? `${INDIAN_CONTEXT}
+
+Given these ingredients: ${ingredients.join(", ")}
+
+Analyze the combined nutritional value of these ingredients as a meal. Give a realistic dish name that could be made from these ingredients (do NOT make up a random name — describe a plausible dish based on the ingredients). Provide per-serving nutrition for a typical 200g serving. Return only valid JSON with no markdown:
+{"foodName":"string","calories":350,"protein":25,"carbs":40,"fats":12,"fiber":5,"sugar":8,"sodium":420,"nutritionScore":75,"healthRating":"good"}`
+      : `${INDIAN_CONTEXT}
 
 Analyze the food in this image and provide accurate nutrition information. For Indian foods, be precise about calorie counts (e.g., dal makhani ~200 kcal/100g, biryani ~175 kcal/100g, roti ~300 kcal each). Return only valid JSON with no markdown:
-{"foodName":"string","calories":350,"protein":25,"carbs":40,"fats":12,"fiber":5,"sugar":8,"sodium":420,"nutritionScore":75,"healthRating":"good"}`,
-        imageData: { base64: imageBase64, mimeType: "image/jpeg" },
-      },
-    ];
+{"foodName":"string","calories":350,"protein":25,"carbs":40,"fats":12,"fiber":5,"sugar":8,"sodium":420,"nutritionScore":75,"healthRating":"good"}`;
+
+    const messages: AIMessage[] = imageBase64
+      ? [{ role: "user", content: prompt, imageData: { base64: imageBase64, mimeType: "image/jpeg" } }]
+      : [{ role: "user", content: prompt }];
 
     const response = await ai.generateContent(messages);
     try {
@@ -206,6 +225,10 @@ Analyze the food in this image and provide accurate nutrition information. For I
       res.status(500).json({ error: "Could not parse nutrition data", _provider: response.provider });
     }
   } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes("Gemini API key required")) {
+      res.status(503).json({ error: "Gemini API key required for image analysis. Set GEMINI_API_KEY in Secrets." });
+      return;
+    }
     if (err instanceof Error && err.message.includes("not configured")) {
       res.status(503).json({ error: "AI not configured. Add GEMINI_API_KEY, GROQ_API_KEY, or OPENROUTER_API_KEY in Secrets." });
       return;
@@ -237,11 +260,13 @@ router.post("/ai/generate-recipes", async (req, res): Promise<void> => {
         role: "user",
         content: `${INDIAN_CONTEXT}
 
-Create 3 authentic Indian recipes using these ingredients: ${ingredients.join(", ")}. Servings: ${servings}.${dietary ? ` Dietary restriction: ${dietary}.` : ""}
+Create 10 unique, authentic Indian recipes using these ingredients: ${ingredients.join(", ")}. Servings: ${servings}.${dietary ? ` Dietary restriction: ${dietary}.` : ""}
 
-Prioritize traditional Indian dishes and cooking techniques (tadka, dum cooking, etc.). Include authentic spice combinations. If ingredients are non-Indian, suggest fusion or adapt to Indian style.
+Each recipe must be DIFFERENT from the others — vary the cuisine style (North Indian, South Indian, Bengali, Gujarati, Punjabi, etc.), cooking technique (tadka, dum, tandoor, steaming, frying), and flavor profile. Do not create 10 similar curries — mix dry sabzis, gravies, breads, rice dishes, tikkas, chaats, etc.
 
-Return only valid JSON with no markdown:
+Prioritize traditional Indian dishes. Include authentic spice combinations. If ingredients are non-Indian, suggest fusion or adapt to Indian style.
+
+Return only valid JSON with no markdown. All 10 recipes must be in the array:
 {"recipes":[{"id":"r1","name":"string","description":"string","difficulty":"easy","prepTime":15,"cookTime":20,"calories":450,"servings":${servings},"ingredients":[{"name":"string","amount":"string"}],"instructions":["Step 1..."],"tips":["Tip 1"],"nutritionInfo":{"protein":30,"carbs":45,"fats":15,"fiber":6}}]}`,
       },
     ];
@@ -337,6 +362,16 @@ router.post("/ai/chat", async (req, res): Promise<void> => {
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
+    // Detect if user is writing in Hindi (Hinglish) or English
+    const hasHindi = /[\u0900-\u097F]/.test(message);
+    const hasHinglish = /\b(mera|mein|hai|ka|ki|ke|ko|se|ne|kaise|kitna|batao|mujhe|kya|accha|thoda|zyada|khana|khana|diet|vajan|and|hai|yeh|bhi|nahi|ho|jaldi|din|raat|karo|jaan|jaano|kal|aaj|kal|main|aap|tum)\b/.test(message.toLowerCase());
+    const isHinglish = !hasHindi && hasHinglish;
+    const isHindi = hasHindi || isHinglish;
+
+    const languageInstruction = isHindi
+      ? "You MUST answer in Hindi using Roman transliteration (English script). Do NOT write in Devanagari script. Use Hindi words in English letters like: 'Aapka khana', 'Protein', 'Calories'. If the user is asking about a specific dish, respond ONLY in that dish name."
+      : "You MUST answer in English only. Do not use Hindi words unless explaining an Indian dish name.";
+
     const systemPrompt = `You are Ingrivio's AI nutrition assistant, specialized in Indian cuisine and nutrition. You are knowledgeable about:
 - Indian foods: dal, paneer, biryani, roti, dosa, idli, sabzi, curries, chaat, pickles, chutneys, etc.
 - Indian spices and their health benefits: turmeric (anti-inflammatory), cumin (digestion), fenugreek (blood sugar), etc.
@@ -346,7 +381,9 @@ router.post("/ai/chat", async (req, res): Promise<void> => {
 - Indian dietary patterns: vegetarian, vegan, Jain, and non-vegetarian diets.
 - Healthy Indian cooking techniques: reducing oil, using ghee in moderation, increasing fiber with dal and vegetables.
 
-Be concise, friendly, and practical. Mix Hindi food terms naturally. Never give medical diagnoses. If asked in Hindi or Hinglish, respond in the same language.`;
+${languageInstruction}
+
+Be concise, friendly, and practical. Never give medical diagnoses. Keep answers under 4 sentences when possible.`;
 
     const messages: AIMessage[] = [
       { role: "system", content: systemPrompt },

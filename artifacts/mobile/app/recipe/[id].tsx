@@ -81,7 +81,10 @@ export default function RecipeDetailScreen() {
 
   const saved = isRecipeSaved(recipe.id);
   const diffColor = DIFFICULTY_COLOR[recipe.difficulty] ?? colors.accent;
-  const images = [recipe.imageUrl, recipe.imageUrl, recipe.imageUrl];
+  const [showMealPicker, setShowMealPicker] = useState(false);
+  const [imgErr, setImgErr] = useState(false);
+  const [g1, g2] = getRecipeGradient(recipe.name, 0);
+  const emoji = getRecipeEmoji(recipe.name);
 
   const handleSave = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -101,6 +104,19 @@ export default function RecipeDetailScreen() {
     router.back();
   };
 
+  const handleLogWithMealType = (mealType: "breakfast" | "lunch" | "dinner" | "snack") => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    addFoodEntry({
+      name: recipe.name,
+      calories: recipe.calories,
+      protein: recipe.nutritionInfo.protein,
+      carbs: recipe.nutritionInfo.carbs,
+      fats: recipe.nutritionInfo.fats,
+      meal: mealType,
+    });
+    router.back();
+  };
+
   const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     topBar: {
@@ -114,7 +130,7 @@ export default function RecipeDetailScreen() {
       alignItems: "center", justifyContent: "center",
     },
     navBtnActive: { backgroundColor: saved ? colors.primary : colors.card, borderColor: saved ? colors.primary : colors.border },
-    imagesRow: { height: 200, marginBottom: 20 },
+    imageWrap: { height: 220, marginBottom: 20, marginHorizontal: 20, borderRadius: 20, overflow: "hidden" },
     name: { fontSize: 24, fontFamily: "Inter_700Bold", color: colors.foreground, paddingHorizontal: 20, marginBottom: 6 },
     desc: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.mutedForeground, paddingHorizontal: 20, lineHeight: 21, marginBottom: 16 },
     metaRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 20, marginBottom: 20 },
@@ -167,18 +183,27 @@ export default function RecipeDetailScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Real photo carousel with 3 images */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={s.imagesRow}
-          decelerationRate="fast"
-          snapToInterval={CARD_W + 12}
-          contentContainerStyle={{ paddingRight: 20 }}
-        >
-          {images.map((url, i) => (
-            <RecipeImageSlide key={i} url={url} name={recipe.name} index={i} />
-          ))}
-        </ScrollView>
+        <View style={s.imageWrap}>
+          {!imgErr ? (
+            <Image
+              source={{ uri: recipe.imageUrl }}
+              style={{ width: "100%", height: "100%" }}
+              resizeMode="cover"
+              onError={() => setImgErr(true)}
+            />
+          ) : (
+            <LinearGradient
+              colors={[g1, g2]}
+              style={{ width: "100%", height: "100%" }}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ fontSize: 70 }}>{emoji}</Text>
+              </View>
+            </LinearGradient>
+          )}
+        </View>
 
         <Text style={s.name}>{recipe.name}</Text>
         <Text style={s.desc}>{recipe.description}</Text>
@@ -248,20 +273,65 @@ export default function RecipeDetailScreen() {
           ))}
         </View>
 
-        <LinearGradient
-          colors={[colors.primary, colors.accent]}
+        <TouchableOpacity
           style={s.logGrad}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
+          onPress={() => setShowMealPicker(true)}
+          activeOpacity={0.7}
         >
-          <TouchableOpacity onPress={handleLog} style={s.logBtnInner}>
+          <LinearGradient
+            colors={[colors.primary, colors.accent]}
+            style={StyleSheet.absoluteFill}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+          />
+          <View style={s.logBtnInner}>
             <Feather name="plus-circle" size={18} color={colors.primaryForeground} />
             <Text style={s.logBtnText}>{t("log_this_meal")}</Text>
-          </TouchableOpacity>
-        </LinearGradient>
+          </View>
+        </TouchableOpacity>
 
         <View style={s.spacer} />
       </ScrollView>
+
+      {/* Meal Type Picker Modal */}
+      {showMealPicker && (
+        <View style={{
+          position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", zIndex: 100,
+        }}>
+          <View style={{
+            backgroundColor: colors.card, borderRadius: colors.radius, marginHorizontal: 30,
+            padding: 20, width: "80%", borderWidth: 1, borderColor: colors.border,
+          }}>
+            <Text style={{
+              fontSize: 18, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 16, textAlign: "center",
+            }}>Log as which meal?</Text>
+            {(["breakfast", "lunch", "dinner", "snack"] as const).map((mealType) => (
+              <TouchableOpacity
+                key={mealType}
+                style={{
+                  paddingVertical: 14, paddingHorizontal: 16, borderRadius: colors.radius - 6,
+                  backgroundColor: colors.secondary, marginBottom: 10, alignItems: "center",
+                }}
+                onPress={() => {
+                  setShowMealPicker(false);
+                  handleLogWithMealType(mealType);
+                }}
+              >
+                <Text style={{
+                  fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.primary, textTransform: "capitalize",
+                }}>{mealType}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={{ paddingVertical: 12, alignItems: "center" }}
+              onPress={() => setShowMealPicker(false)}
+            >
+              <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </View>
   );
 }

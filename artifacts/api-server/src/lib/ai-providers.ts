@@ -310,3 +310,17 @@ export function createAIOrchestrator(): AIFallbackOrchestrator {
   logger.info({ providers: providers.map((p) => p.name) }, "AI fallback chain initialized");
   return new AIFallbackOrchestrator(providers);
 }
+
+/**
+ * Vision-only orchestrator: Gemini only for image analysis.
+ * Groq/OpenRouter do NOT support vision and will hallucinate on images.
+ */
+export function createVisionOrchestrator(): AIFallbackOrchestrator {
+  const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!geminiKey) {
+    throw new Error("Gemini API key required for image analysis. Set GEMINI_API_KEY.");
+  }
+  const gemini = new GeminiProvider(geminiKey, "gemini-2.5-flash");
+  logger.info({ provider: "gemini" }, "Vision-only orchestrator initialized (Gemini only)");
+  return new AIFallbackOrchestrator([gemini]);
+}
