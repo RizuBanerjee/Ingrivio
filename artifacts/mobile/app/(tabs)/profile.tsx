@@ -30,22 +30,30 @@ export default function ProfileScreen() {
   const { t, language, setLanguage } = useLanguage();
   const insets = useSafeAreaInsets();
   const { profile, updateProfile, todayLog, savedRecipes } = useApp();
-  const { user, isAnonymous, signOut } = useFirebaseAuth();
+  const { user, isAnonymous, signOut, dbUser, updateDisplayName } = useFirebaseAuth();
   const isLoggedIn = !!user && !isAnonymous;
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<UserProfile>(profile);
+  const [editName, setEditName] = useState(isLoggedIn ? (user?.displayName || "") : (profile.name || ""));
 
   const consumed = todayLog.entries.reduce((s, e) => s + e.calories, 0);
   const bmi = profile.height > 0 ? profile.weight / Math.pow(profile.height / 100, 2) : 0;
 
-  const save = () => {
-    updateProfile(draft);
+  const save = async () => {
+    if (isLoggedIn && editName.trim()) {
+      await updateDisplayName(editName.trim());
+      updateProfile({ name: editName.trim() });
+    } else {
+      updateProfile(draft);
+    }
     setEditing(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
-  const displayName = isLoggedIn ? (user?.displayName || user?.email?.split("@")[0] || "User") : (profile.name || t("guest"));
+  const displayName = isLoggedIn
+    ? (user?.displayName || user?.email?.split("@")[0] || "User")
+    : (profile.name || "Guest");
   const initials = (displayName || "IN")
     .split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
@@ -135,6 +143,8 @@ export default function ProfileScreen() {
     goalBtnActive: { backgroundColor: colors.primary + "25", borderColor: colors.primary },
     goalBtnText: { fontSize: 13, fontFamily: "Inter_500Medium", color: colors.mutedForeground },
     goalBtnTextActive: { color: colors.primary, fontFamily: "Inter_600SemiBold" },
+    actionBtn: { flex: 1, paddingVertical: 16, alignItems: "center", gap: 8, backgroundColor: colors.secondary, borderRadius: colors.radius - 6 },
+    actionLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: colors.mutedForeground },
     dietRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
     dietChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: colors.secondary, borderWidth: 1, borderColor: colors.border },
     dietChipActive: { backgroundColor: colors.primary + "20", borderColor: colors.primary },
@@ -171,13 +181,21 @@ export default function ProfileScreen() {
               {editing ? (
                 <TextInput
                   style={s.nameEdit}
-                  value={draft.name}
-                  onChangeText={(v) => setDraft((p) => ({ ...p, name: v }))}
+                  value={isLoggedIn ? editName : draft.name}
+                  onChangeText={(v) => {
+                    if (isLoggedIn) setEditName(v);
+                    else setDraft((p) => ({ ...p, name: v }));
+                  }}
                   placeholder="Your name"
                   placeholderTextColor="rgba(255,255,255,0.4)"
                 />
               ) : (
                 <Text style={s.profileName}>{displayName}</Text>
+              )}
+              {dbUser?.userId && (
+                <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.6)", marginTop: 2 }}>
+                  {dbUser.userId}
+                </Text>
               )}
               <View style={s.goalBadge}>
                 <Text style={s.goalBadgeText}>
@@ -361,6 +379,36 @@ export default function ProfileScreen() {
             </View>
           ))}
         </View>
+
+        {/* Social */}
+        {isLoggedIn && dbUser && (
+          <View style={s.card}>
+            <Text style={s.cardTitle}>Social</Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <TouchableOpacity
+                style={[s.actionBtn, { flex: 1 }]}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/friends"); }}
+              >
+                <Feather name="users" size={18} color={colors.primary} />
+                <Text style={s.actionLabel}>Friends</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.actionBtn, { flex: 1 }]}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/friend-requests"); }}
+              >
+                <Feather name="user-plus" size={18} color={colors.primary} />
+                <Text style={s.actionLabel}>Requests</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.actionBtn, { flex: 1 }]}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/add-friend"); }}
+              >
+                <Feather name="search" size={18} color={colors.primary} />
+                <Text style={s.actionLabel}>Add Friend</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         <View style={s.spacer} />
       </ScrollView>

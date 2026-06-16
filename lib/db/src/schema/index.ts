@@ -18,3 +18,7 @@
 //   export type Post = typeof postsTable.$inferSelect;
 
 export * from "./dailyLogs";
+export * from "./users";
+export * from "./friendRequests";
+export * from "./friends";
+export * from "./notifications";

@@ -3,40 +3,57 @@ import { type FirebaseUser, registerEmail, loginEmail, logout, resetPassword, on
 import { syncUserProfile, fetchUserProfile, syncDailyLog, syncSavedRecipes, syncGeneratedRecipes } from "@/firebase/firestoreClient";
 import { logLogin, logSignUp } from "@/firebase/analyticsClient";
 import { useApp } from "./AppContext";
+import { createUser, getUserByFirebase } from "@/services/ai";
+import type { UserRow } from "@/services/ai";
 
 interface FirebaseAuthContextType {
   user: FirebaseUser | null;
+  dbUser: UserRow | null;
   isLoading: boolean;
   isAnonymous: boolean;
   signUp: (email: string, password: string, name: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
+  updateDisplayName: (name: string) => Promise<void>;
   error: string | null;
   clearError: () => void;
 }
 
 const FirebaseAuthContext = createContext<FirebaseAuthContextType>({
   user: null,
+  dbUser: null,
   isLoading: true,
   isAnonymous: true,
   signUp: async () => {},
   signIn: async () => {},
   signOut: async () => {},
   forgotPassword: async () => {},
+  updateDisplayName: async () => {},
   error: null,
   clearError: () => {},
 });
 
 export function FirebaseAuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [dbUser, setDbUser] = useState<UserRow | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { profile, todayLog, savedRecipes, generatedRecipes } = useApp();
 
   useEffect(() => {
-    const unsub = onAuthStateChanged((u) => {
+    const unsub = onAuthStateChanged(async (u) => {
       setUser(u);
+      if (u) {
+        try {
+          const existing = await getUserByFirebase(u.uid);
+          setDbUser(existing);
+        } catch {
+          setDbUser(null);
+        }
+      } else {
+        setDbUser(null);
+      }
       setIsLoading(false);
     });
     return unsub;
@@ -60,8 +77,13 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
   const signUp = useCallback(async (email: string, password: string, name: string) => {
     setError(null);
     try {
-      await registerEmail(email, password, name);
+      const cred = await registerEmail(email, password, name);
       logSignUp("email");
+      // Create DB user
+      try {
+        const u = await createUser(cred.user.uid, name, email);
+        setDbUser(u);
+      } catch {}
     } catch (e: any) {
       setError(e.message || "Sign up failed");
       throw e;
@@ -71,8 +93,19 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
   const signIn = useCallback(async (email: string, password: string) => {
     setError(null);
     try {
-      await loginEmail(email, password);
+      const cred = await loginEmail(email, password);
       logLogin("email");
+      // Fetch or create DB user
+      try {
+        const u = await getUserByFirebase(cred.user.uid);
+        setDbUser(u);
+      } catch {
+        // Create if not exists
+        try {
+          const u = await createUser(cred.user.uid, cred.user.displayName || email.split("@")[0], email);
+          setDbUser(u);
+        } catch {}
+      }
     } catch (e: any) {
       setError(e.message || "Sign in failed");
       throw e;
@@ -83,10 +116,25 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
     setError(null);
     try {
       await logout();
+      setDbUser(null);
     } catch (e: any) {
       setError(e.message || "Sign out failed");
     }
   }, []);
+
+  const updateDisplayName = useCallback(async (name: string) => {
+    if (!user) return;
+    try {
+      const { updateProfile } = await import("firebase/auth");
+      const { getAuth } = await import("firebase/auth");
+      const { getApp } = await import("firebase/app");
+      const auth = getAuth(getApp());
+      await updateProfile(auth.currentUser!, { displayName: name });
+      setUser((prev) => prev ? { ...prev, displayName: name } as FirebaseUser : prev);
+    } catch (e: any) {
+      setError(e.message || "Failed to update name");
+    }
+  }, [user]);
 
   const forgotPassword = useCallback(async (email: string) => {
     setError(null);
@@ -104,12 +152,14 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
     <FirebaseAuthContext.Provider
       value={{
         user,
+        dbUser,
         isLoading,
         isAnonymous: !user,
         signUp,
         signIn,
         signOut: signOutUser,
         forgotPassword,
+        updateDisplayName,
         error,
         clearError,
       }}

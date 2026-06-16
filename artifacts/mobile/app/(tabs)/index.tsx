@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform, Dimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather, Ionicons } from "@expo/vector-icons";
@@ -12,6 +12,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
 import { CalorieRing } from "@/components/CalorieRing";
 import { MacroBars } from "@/components/MacroBars";
+import { getDailyLog } from "@/services/ai";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
@@ -21,11 +22,16 @@ export default function HomeScreen() {
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const { profile, todayLog, addWater } = useApp();
-  const { user } = useFirebaseAuth();
+  const { user, dbUser } = useFirebaseAuth();
+  const isLoggedIn = !!user && !dbUser === false;
 
   const [historyView, setHistoryView] = useState<"daily" | "weekly" | "monthly">("daily");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
+  const [weeklyData, setWeeklyData] = useState<{ date: Date; calories: number; label: string }[]>([]);
+  const [monthlyData, setMonthlyData] = useState<{ week: string; calories: number }[]>([]);
+  const [weeklyMax, setWeeklyMax] = useState(1);
+  const [monthlyMax, setMonthlyMax] = useState(1);
 
   const consumed = todayLog.entries.reduce((s, e) => s + e.calories, 0);
   const protein = todayLog.entries.reduce((s, e) => s + e.protein, 0);
@@ -65,30 +71,51 @@ export default function HomeScreen() {
     setSelectedDate(new Date(calYear, calMonth + dir, 1));
   };
 
-  const getWeeklyData = () => {
-    const data = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const dateKey = d.toISOString().split("T")[0];
-      // Placeholder — would fetch from DB
-      data.push({ date: d, calories: Math.round(Math.random() * 800 + 1200), label: dayNames[d.getDay()] });
-    }
-    return data;
-  };
+  // Load real weekly/monthly data from DB
+  useEffect(() => {
+    const uid = dbUser?.userId || user?.uid;
+    if (!uid) return;
+    (async () => {
+      try {
+        // Weekly: last 7 days
+        const wd = [];
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(today);
+          d.setDate(d.getDate() - i);
+          const dateKey = d.toISOString().split("T")[0];
+          const log = await getDailyLog(uid, dateKey);
+          const cal = log?.totalCalories ?? 0;
+          wd.push({ date: d, calories: cal, label: dayNames[d.getDay()] });
+        }
+        setWeeklyData(wd);
+        setWeeklyMax(Math.max(...wd.map((d) => d.calories), profile.calorieGoal, 1));
 
-  const getMonthlyData = () => {
-    const data = [];
-    for (let i = 0; i < 4; i++) {
-      data.push({ week: `Week ${i + 1}`, calories: Math.round(Math.random() * 3000 + 10000) });
-    }
-    return data;
-  };
+        // Monthly: 4 weeks of this month
+        const md = [];
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = now.getMonth();
+        const totalDays = new Date(y, m + 1, 0).getDate();
+        const weeks = Math.ceil(totalDays / 7);
+        for (let w = 0; w < weeks; w++) {
+          const weekStart = w * 7 + 1;
+          const weekEnd = Math.min(weekStart + 6, totalDays);
+          let weekCal = 0;
+          for (let d = weekStart; d <= weekEnd; d++) {
+            const dateStr = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+            const log = await getDailyLog(uid, dateStr);
+            weekCal += log?.totalCalories ?? 0;
+          }
+          md.push({ week: `Week ${w + 1}`, calories: weekCal });
+        }
+        setMonthlyData(md);
+        setMonthlyMax(Math.max(...md.map((d) => d.calories), 1));
+      } catch {}
+    })();
+  }, [dbUser?.userId, user?.uid, profile.calorieGoal]);
 
-  const weeklyData = getWeeklyData();
-  const monthlyData = getMonthlyData();
-  const maxWeeklyCal = Math.max(...weeklyData.map(d => d.calories), 1);
-  const maxMonthlyCal = Math.max(...monthlyData.map(d => d.calories), 1);
+  const maxWeeklyCal = weeklyMax;
+  const maxMonthlyCal = monthlyMax;
 
   const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
@@ -151,9 +178,19 @@ export default function HomeScreen() {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          <Text style={s.greeting}>{t(greetKey)}</Text>
-          <Text style={s.name}>{(profile.name || user?.displayName || "Namaste").split(" ")[0]}</Text>
-          <Text style={s.date}>{dateStr}</Text>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <View>
+              <Text style={s.greeting}>{t(greetKey)}</Text>
+              <Text style={s.name}>{(profile.name || user?.displayName || "Namaste").split(" ")[0]}</Text>
+              <Text style={s.date}>{dateStr}</Text>
+            </View>
+            <TouchableOpacity
+              style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" }}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/notifications"); }}
+            >
+              <Feather name="bell" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         </LinearGradient>
 
         <View style={s.ringSection}>
