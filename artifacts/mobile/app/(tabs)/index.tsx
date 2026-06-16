@@ -281,37 +281,44 @@ export default function HomeScreen() {
                   <Feather name="chevron-right" size={18} color={colors.primary} />
                 </TouchableOpacity>
               </View>
-              <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+              {/* Day header row */}
+              <View style={{ flexDirection: "row" }}>
                 {dayNames.map((d) => (
-                  <View key={d} style={{ width: (SCREEN_W - 72) / 7, alignItems: "center", paddingVertical: 4 }}>
+                  <View key={d} style={{ flex: 1, alignItems: "center", paddingVertical: 4 }}>
                     <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>{d}</Text>
                   </View>
                 ))}
-                {Array.from({ length: startDay }).map((_, i) => (
-                  <View key={`empty-${i}`} style={{ width: (SCREEN_W - 72) / 7, height: 36 }} />
-                ))}
-                {Array.from({ length: numDays }).map((_, i) => {
-                  const day = i + 1;
-                  const todayFlag = isToday(day);
-                  const selectedFlag = isSelected(day);
-                  return (
-                    <TouchableOpacity
-                      key={day}
-                      style={{
-                        width: (SCREEN_W - 72) / 7, height: 36, alignItems: "center", justifyContent: "center",
-                        borderRadius: 18,
-                        backgroundColor: selectedFlag ? colors.primary : todayFlag ? colors.primary + "30" : "transparent",
-                      }}
-                      onPress={() => setSelectedDate(new Date(calYear, calMonth, day))}
-                    >
-                      <Text style={{
-                        fontSize: 13, fontFamily: "Inter_500Medium",
-                        color: selectedFlag ? colors.primaryForeground : todayFlag ? colors.primary : colors.foreground,
-                      }}>{day}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
               </View>
+              {/* Calendar grid — 7 cells per row */}
+              {Array.from({ length: Math.ceil((startDay + numDays) / 7) }).map((_, rowIdx) => (
+                <View key={`row-${rowIdx}`} style={{ flexDirection: "row" }}>
+                  {Array.from({ length: 7 }).map((_, colIdx) => {
+                    const cellIdx = rowIdx * 7 + colIdx;
+                    const day = cellIdx - startDay + 1;
+                    if (day < 1 || day > numDays) {
+                      return <View key={`cell-${rowIdx}-${colIdx}`} style={{ flex: 1, height: 36 }} />;
+                    }
+                    const todayFlag = isToday(day);
+                    const selectedFlag = isSelected(day);
+                    return (
+                      <TouchableOpacity
+                        key={day}
+                        style={{
+                          flex: 1, height: 36, alignItems: "center", justifyContent: "center",
+                          borderRadius: 18,
+                          backgroundColor: selectedFlag ? colors.primary : todayFlag ? colors.primary + "30" : "transparent",
+                        }}
+                        onPress={() => setSelectedDate(new Date(calYear, calMonth, day))}
+                      >
+                        <Text style={{
+                          fontSize: 13, fontFamily: "Inter_500Medium",
+                          color: selectedFlag ? colors.primaryForeground : todayFlag ? colors.primary : colors.foreground,
+                        }}>{day}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
             </View>
           )}
 

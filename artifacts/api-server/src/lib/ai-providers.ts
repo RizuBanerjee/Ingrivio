@@ -288,23 +288,27 @@ export class AIFallbackOrchestrator {
 export function createAIOrchestrator(): AIFallbackOrchestrator {
   const providers: AIProvider[] = [];
 
-  const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (geminiKey) {
-    providers.push(new GeminiProvider(geminiKey, "gemini-2.5-flash"));
-  }
-
+  // Groq is the PRIMARY provider for text tasks (chat, recipes, meal plans)
+  // because it is fast, free, and gives accurate responses.
   const groqKey = process.env.GROQ_API_KEY;
   if (groqKey) {
     providers.push(new GroqProvider(groqKey, "llama-3.3-70b-versatile"));
   }
 
+  // OpenRouter is the SECONDARY fallback (free tier with decent models)
   const openRouterKey = process.env.OPENROUTER_API_KEY;
   if (openRouterKey) {
     providers.push(new OpenRouterProvider(openRouterKey, "meta-llama/llama-3.3-70b-instruct:free"));
   }
 
+  // Gemini is the LAST resort for text tasks only — 20 req/day limit
+  const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (geminiKey) {
+    providers.push(new GeminiProvider(geminiKey, "gemini-2.5-flash"));
+  }
+
   if (providers.length === 0) {
-    throw new Error("No AI providers configured. Set GEMINI_API_KEY, GROQ_API_KEY, or OPENROUTER_API_KEY.");
+    throw new Error("No AI providers configured. Set GROQ_API_KEY, OPENROUTER_API_KEY, or GEMINI_API_KEY.");
   }
 
   logger.info({ providers: providers.map((p) => p.name) }, "AI fallback chain initialized");
