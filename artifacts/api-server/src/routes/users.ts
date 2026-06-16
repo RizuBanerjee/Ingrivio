@@ -56,6 +56,36 @@ router.post("/users", async (req, res) => {
   }
 });
 
+// GET /api/users/search?query=#xxx
+router.get("/users/search", async (req, res) => {
+  const { query } = req.query;
+  if (!query || typeof query !== "string") {
+    res.status(400).json({ error: "Missing query" });
+    return;
+  }
+  const normalized = query.trim().toLowerCase();
+  try {
+    const rows = await db.select({
+      userId: usersTable.userId,
+      username: usersTable.username,
+      avatar: usersTable.avatar,
+    }).from(usersTable).where(
+      or(
+        sql`LOWER(${usersTable.userId}) = ${normalized}`,
+        sql`LOWER(${usersTable.userId}) = ${"#" + normalized.replace("#", "")}`,
+      )
+    ).limit(1);
+    if (rows.length === 0) {
+      res.json({ found: false });
+      return;
+    }
+    res.json({ found: true, user: rows[0] });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to search user" });
+  }
+});
+
 // GET /api/users/me?firebaseUid=xxx
 router.get("/users/me", async (req, res) => {
   const { firebaseUid } = req.query;
@@ -118,36 +148,6 @@ router.post("/users/:userId", async (req, res) => {
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Failed to update user" });
-  }
-});
-
-// GET /api/users/search?query=#xxx
-router.get("/users/search", async (req, res) => {
-  const { query } = req.query;
-  if (!query || typeof query !== "string") {
-    res.status(400).json({ error: "Missing query" });
-    return;
-  }
-  const normalized = query.trim().toLowerCase();
-  try {
-    const rows = await db.select({
-      userId: usersTable.userId,
-      username: usersTable.username,
-      avatar: usersTable.avatar,
-    }).from(usersTable).where(
-      or(
-        sql`LOWER(${usersTable.userId}) = ${normalized}`,
-        sql`LOWER(${usersTable.userId}) = ${"#" + normalized.replace("#", "")}`,
-      )
-    ).limit(1);
-    if (rows.length === 0) {
-      res.json({ found: false });
-      return;
-    }
-    res.json({ found: true, user: rows[0] });
-  } catch (err) {
-    req.log.error(err);
-    res.status(500).json({ error: "Failed to search user" });
   }
 });
 
