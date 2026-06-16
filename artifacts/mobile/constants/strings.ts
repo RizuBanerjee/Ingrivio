@@ -30,7 +30,7 @@ const en: Record<StringKey, string> = {
   water: "Water", glasses_today: "glasses today",
   breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner", snack: "Snack",
   generated: "Generated", saved: "Saved", generate: "Generate", search_recipes: "Search recipes...",
-  ai_scanner: "AI Scanner", ingredients: "Ingredients", nutrition: "Nutrition",
+  ai_scanner: "Scan Your Food", ingredients: "Ingredients", nutrition: "Nutrition",
   camera: "Camera", gallery: "Gallery",
   settings: "Settings", appearance: "Appearance", theme: "Theme", language: "Language",
   body_stats: "Body Stats", goal: "Goal", dietary_prefs: "Dietary Preferences", daily_targets: "Daily Targets",
