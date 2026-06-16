@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { usersTable, friendRequestsTable, friendsTable } from "@workspace/db/schema";
+import { usersTable, friendRequestsTable, friendsTable, notificationsTable } from "@workspace/db/schema";
 import { eq, and, or } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -51,6 +51,17 @@ router.post("/friends/request", async (req, res) => {
       receiverUsername: receiver[0].username,
       status: "pending",
     });
+    // Create notification for receiver
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+    await db.insert(notificationsTable).values({
+      userId: receiverId,
+      type: "friend_request",
+      title: "New Friend Request",
+      body: `${sender[0].username} sent you a friend request`,
+      data: JSON.stringify({ senderId, senderUsername: sender[0].username }),
+      expiresAt,
+    });
     res.json({ success: true, message: "Friend request sent" });
   } catch (err) {
     req.log.error(err);
@@ -90,6 +101,17 @@ router.post("/friends/accept", async (req, res) => {
       friendId: fr.senderId,
       friendUsername: fr.senderUsername,
       friendAvatar: "",
+    });
+    // Create notification for sender (their request was accepted)
+    const acceptedNotifExpires = new Date();
+    acceptedNotifExpires.setDate(acceptedNotifExpires.getDate() + 7);
+    await db.insert(notificationsTable).values({
+      userId: fr.senderId,
+      type: "friend_accepted",
+      title: "Friend Request Accepted",
+      body: `${fr.receiverUsername} accepted your friend request`,
+      data: JSON.stringify({ receiverId: fr.receiverId, receiverUsername: fr.receiverUsername }),
+      expiresAt: acceptedNotifExpires,
     });
     res.json({ success: true, message: "Friend request accepted" });
   } catch (err) {
@@ -152,7 +174,17 @@ router.get("/friends", async (req, res) => {
   }
   try {
     const rows = await db.select().from(friendsTable).where(eq(friendsTable.userId, userId));
-    res.json({ friends: rows });
+    // Get fresh usernames from users table (in case friend renamed)
+    const enriched = await Promise.all(
+      rows.map(async (row) => {
+        const friendUser = await db.select({ username: usersTable.username }).from(usersTable).where(eq(usersTable.userId, row.friendId)).limit(1);
+        return {
+          ...row,
+          friendUsername: friendUser.length > 0 ? friendUser[0].username : row.friendUsername,
+        };
+      })
+    );
+    res.json({ friends: enriched });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Failed to fetch friends" });

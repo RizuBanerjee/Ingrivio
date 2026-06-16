@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -20,14 +20,52 @@ import { streamChat } from "@/services/ai";
 
 interface Msg { id: string; role: "user" | "assistant"; content: string; }
 
-const SUGGESTIONS = [
+const SUGGESTIONS_POOL = [
   "Dal makhani mein kitni calories hoti hain?",
   "Best Indian breakfast for weight loss?",
   "Is ghee healthy? How much per day?",
   "How to make paneer high-protein?",
   "What are benefits of turmeric (haldi)?",
   "Suggest a healthy Indian thali",
+  "How many calories in chole bhature?",
+  "Best protein sources for vegetarians in India?",
+  "How to reduce oil in Indian cooking?",
+  "Is idli good for diabetes?",
+  "Healthy alternatives to paratha?",
+  "How much protein in 100g paneer?",
+  "Best pre-workout Indian meal?",
+  "Low calorie Indian snacks?",
+  "How to make dosa healthier?",
+  "Calories in one samosa?",
+  "Best Indian dinner for weight loss?",
+  "Is chai with sugar bad for health?",
+  "Protein content in dal?",
+  "Healthy tiffin ideas for office",
+  "How to cook with less ghee?",
+  "Is poha healthy for breakfast?",
+  "Calories in rajma chawal?",
+  "Best Indian foods for muscle gain?",
+  "How to make biryani healthier?",
+  "Is jaggery better than sugar?",
+  "Protein in 1 egg + 2 paratha?",
+  "Healthy roti vs rice choice?",
+  "Low carb Indian dinner options?",
+  "How much water to drink daily?",
 ];
+
+function getDailySuggestions(): string[] {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  const diff = now.getTime() - start.getTime();
+  const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const seed = dayOfYear;
+  const shuffled = [...SUGGESTIONS_POOL];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = ((seed * (i + 1) * 31) + i * 7) % (i + 1);
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, 4);
+}
 
 export default function ChatScreen() {
   const colors = useColors();
@@ -39,6 +77,7 @@ export default function ChatScreen() {
   const [streaming, setStreaming] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const listRef = useRef<FlatList>(null);
+  const dailySuggestions = useMemo(() => getDailySuggestions(), []);
 
   const uid = () => Date.now().toString() + Math.random().toString(36).substr(2, 6);
   const [lastFailedMsg, setLastFailedMsg] = useState<string | null>(null);
@@ -244,7 +283,7 @@ export default function ChatScreen() {
               Ask about Indian recipes, nutrition, calories, meal planning, and more.
             </Text>
             <Text style={s.suggestionsTitle}>Try asking</Text>
-            {SUGGESTIONS.map((sug) => (
+            {dailySuggestions.map((sug) => (
               <TouchableOpacity key={sug} style={s.suggestion} onPress={() => send(sug)}>
                 <Text style={s.suggestionText}>{sug}</Text>
               </TouchableOpacity>

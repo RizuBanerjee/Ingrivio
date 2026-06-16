@@ -9,7 +9,7 @@ export type StringKey =
   | "generated" | "saved" | "generate" | "search_recipes"
   | "ai_scanner" | "ingredients" | "nutrition" | "camera" | "gallery"
   | "settings" | "appearance" | "theme" | "language"
-  | "body_stats" | "goal" | "dietary_prefs" | "daily_targets"
+  | "body_stats" | "goal" | "gender" | "dietary_prefs" | "daily_targets"
   | "edit" | "save" | "save_changes"
   | "detecting" | "analyzing" | "detected"
   | "generate_recipes" | "generating_recipes"
@@ -33,7 +33,7 @@ const en: Record<StringKey, string> = {
   ai_scanner: "Scan Your Food", ingredients: "Ingredients", nutrition: "Nutrition",
   camera: "Camera", gallery: "Gallery",
   settings: "Settings", appearance: "Appearance", theme: "Theme", language: "Language",
-  body_stats: "Body Stats", goal: "Goal", dietary_prefs: "Dietary Preferences", daily_targets: "Daily Targets",
+  body_stats: "Body Stats", goal: "Goal", gender: "Gender", dietary_prefs: "Dietary Preferences", daily_targets: "Daily Targets",
   edit: "Edit", save: "Save", save_changes: "Save Changes",
   detecting: "Detecting ingredients...", analyzing: "Analyzing nutrition...", detected: "Detected",
   generate_recipes: "Generate Recipes", generating_recipes: "Generating recipes...",
@@ -58,7 +58,7 @@ const hi: Record<StringKey, string> = {
   ai_scanner: "AI स्कैनर", ingredients: "सामग्री", nutrition: "पोषण",
   camera: "कैमरा", gallery: "गैलरी",
   settings: "सेटिंग्स", appearance: "रूप-रंग", theme: "थीम", language: "भाषा",
-  body_stats: "शरीर के आंकड़े", goal: "लक्ष्य", dietary_prefs: "आहार संबंधी प्राथमिकताएं", daily_targets: "दैनिक लक्ष्य",
+  body_stats: "शरीर के आंकड़े", goal: "लक्ष्य", gender: "लिंग", dietary_prefs: "आहार संबंधी प्राथमिकताएं", daily_targets: "दैनिक लक्ष्य",
   edit: "संपादित करें", save: "सहेजें", save_changes: "बदलाव सहेजें",
   detecting: "सामग्री खोजी जा रही है...", analyzing: "पोषण विश्लेषण हो रहा है...", detected: "मिली",
   generate_recipes: "व्यंजन बनाएं", generating_recipes: "व्यंजन बन रहे हैं...",

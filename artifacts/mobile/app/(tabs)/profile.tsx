@@ -14,6 +14,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useApp, type UserProfile } from "@/contexts/AppContext";
 import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
 import { THEMES, type ThemeId } from "@/constants/themes";
+import { updateUser } from "@/services/ai";
 
 const GOALS = [
   { key: "lose", labelKey: "lose_weight" },
@@ -36,19 +37,54 @@ export default function ProfileScreen() {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<UserProfile>(profile);
   const [editName, setEditName] = useState(isLoggedIn ? (user?.displayName || "") : (profile.name || ""));
+  const [saving, setSaving] = useState(false);
 
   const consumed = todayLog.entries.reduce((s, e) => s + e.calories, 0);
-  const bmi = profile.height > 0 ? profile.weight / Math.pow(profile.height / 100, 2) : 0;
+  const bmi = (profile.height ?? 0) > 0 && (profile.weight ?? 0) > 0
+    ? (profile.weight! / Math.pow(profile.height! / 100, 2))
+    : 0;
 
   const save = async () => {
-    if (isLoggedIn && editName.trim()) {
-      await updateDisplayName(editName.trim());
-      updateProfile({ name: editName.trim() });
-    } else {
-      updateProfile(draft);
+    if (saving) return;
+    setSaving(true);
+    try {
+      const newProfile = { ...draft };
+      if (isLoggedIn && editName.trim()) {
+        await updateDisplayName(editName.trim());
+        newProfile.name = editName.trim();
+      } else if (!isLoggedIn) {
+        newProfile.name = draft.name;
+      }
+      updateProfile(newProfile);
+
+      // Save to DB if logged in
+      if (isLoggedIn && dbUser) {
+        try {
+          await updateUser(dbUser.userId, {
+            username: newProfile.name,
+            age: newProfile.age ?? undefined,
+            height: newProfile.height ?? undefined,
+            weight: newProfile.weight ?? undefined,
+            gender: newProfile.gender || undefined,
+            goal: newProfile.goal || undefined,
+            dietary: newProfile.dietary,
+            calorieGoal: newProfile.calorieGoal ?? undefined,
+            proteinGoal: newProfile.proteinGoal ?? undefined,
+            carbsGoal: newProfile.carbsGoal ?? undefined,
+            fatsGoal: newProfile.fatsGoal ?? undefined,
+            waterGoal: newProfile.waterGoal ?? undefined,
+          });
+        } catch (e) {
+          console.error("Failed to save profile to DB", e);
+        }
+      }
+      setEditing(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setSaving(false);
     }
-    setEditing(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const displayName = isLoggedIn
@@ -168,9 +204,10 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={s.editBtn}
               onPress={() => { editing ? save() : (setDraft(profile), setEditing(true)); }}
+              disabled={saving}
             >
               <Feather name={editing ? "check" : "edit-2"} size={15} color={editing ? colors.primary : "#FFFFFF"} />
-              <Text style={s.editBtnText}>{editing ? t("save") : t("edit")}</Text>
+              <Text style={s.editBtnText}>{editing ? (saving ? "Saving..." : t("save")) : t("edit")}</Text>
             </TouchableOpacity>
           </View>
           <View style={s.avatarRow}>
@@ -210,9 +247,9 @@ export default function ProfileScreen() {
 
         <View style={s.statsRow}>
           {[
-            { label: t("today"), value: `${consumed}` },
+            { label: t("today"), value: consumed > 0 ? `${consumed}` : "—" },
             { label: t("bmi"), value: bmi > 0 ? bmi.toFixed(1) : "—" },
-            { label: t("saved"), value: savedRecipes.length.toString() },
+            { label: t("saved"), value: `${savedRecipes.length}` },
           ].map((stat) => (
             <View key={stat.label} style={s.statCard}>
               <Text style={s.statValue}>{stat.value}</Text>
@@ -255,7 +292,6 @@ export default function ProfileScreen() {
         {/* Appearance */}
         <View style={s.card}>
           <Text style={s.cardTitle}>{t("appearance")}</Text>
-
           <Text style={s.fieldLabel}>{t("theme")}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
             <View style={s.themeRow}>
@@ -265,18 +301,12 @@ export default function ProfileScreen() {
                   style={[s.themeSwatch, themeId === th.id && s.themeSwatchActive]}
                   onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTheme(th.id); }}
                 >
-                  <LinearGradient
-                    colors={th.gradients.hero as [string, string, ...string[]]}
-                    style={s.themeGrad}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  />
+                  <LinearGradient colors={th.gradients.hero as [string, string, ...string[]]} style={s.themeGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
                   <Text style={s.themeLabel}>{th.emoji} {th.name}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           </ScrollView>
-
           <Text style={s.fieldLabel}>{t("language")}</Text>
           <View style={s.langRow}>
             {(["en", "hi"] as const).map((lang) => (
@@ -296,23 +326,45 @@ export default function ProfileScreen() {
         {/* Body Stats */}
         <View style={s.card}>
           <Text style={s.cardTitle}>{t("body_stats")}</Text>
-          {([["age", t("age"), "yrs"], ["height", t("height"), "cm"], ["weight", t("weight"), "kg"]] as [keyof UserProfile, string, string][]).map(([key, label, suffix]) => (
-            <View key={key} style={s.field}>
-              <Text style={s.fieldLabel}>{label}</Text>
-              {editing ? (
-                <TextInput
-                  style={s.fieldInput}
-                  value={String(draft[key] ?? "")}
-                  onChangeText={(v) => setDraft((p) => ({ ...p, [key]: parseFloat(v) || 0 }))}
-                  keyboardType="numeric"
-                  placeholder={suffix}
-                  placeholderTextColor={colors.mutedForeground}
-                />
-              ) : (
-                <Text style={s.fieldValue}>{String(profile[key])} {suffix}</Text>
-              )}
-            </View>
-          ))}
+          {(["age", "height", "weight"] as const).map((key) => {
+            const label = key === "age" ? t("age") : key === "height" ? t("height") : t("weight");
+            const suffix = key === "age" ? "yrs" : key === "height" ? "cm" : "kg";
+            return (
+              <View key={key} style={s.field}>
+                <Text style={s.fieldLabel}>{label}</Text>
+                {editing ? (
+                  <TextInput
+                    style={s.fieldInput}
+                    value={String(draft[key] ?? "")}
+                    onChangeText={(v) => setDraft((p) => ({ ...p, [key]: v ? parseFloat(v) : null }))}
+                    keyboardType="numeric"
+                    placeholder={suffix}
+                    placeholderTextColor={colors.mutedForeground}
+                  />
+                ) : (
+                  <Text style={s.fieldValue}>{profile[key] != null ? `${profile[key]} ${suffix}` : "—"}</Text>
+                )}
+              </View>
+            );
+          })}
+        </View>
+
+        {/* Gender */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>{t("gender")}</Text>
+          <View style={s.goalsRow}>
+            {(["male", "female", "other"] as const).map((g) => (
+              <TouchableOpacity
+                key={g}
+                style={[s.goalBtn, (editing ? draft : profile).gender === g && s.goalBtnActive]}
+                onPress={() => { if (!editing) return; setDraft((p) => ({ ...p, gender: g })); }}
+              >
+                <Text style={[s.goalBtnText, (editing ? draft : profile).gender === g && s.goalBtnTextActive]}>
+                  {g.charAt(0).toUpperCase() + g.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
         {/* Goal */}
@@ -322,10 +374,10 @@ export default function ProfileScreen() {
             {GOALS.map((g) => (
               <TouchableOpacity
                 key={g.key}
-                style={[s.goalBtn, draft.goal === g.key && s.goalBtnActive]}
+                style={[s.goalBtn, (editing ? draft : profile).goal === g.key && s.goalBtnActive]}
                 onPress={() => { if (!editing) return; setDraft((p) => ({ ...p, goal: g.key })); }}
               >
-                <Text style={[s.goalBtnText, draft.goal === g.key && s.goalBtnTextActive]}>{t(g.labelKey)}</Text>
+                <Text style={[s.goalBtnText, (editing ? draft : profile).goal === g.key && s.goalBtnTextActive]}>{t(g.labelKey)}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -351,6 +403,11 @@ export default function ProfileScreen() {
               );
             })}
           </View>
+          {(editing ? draft : profile).dietary.length === 0 && (
+            <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 8 }}>
+              No dietary preferences selected.
+            </Text>
+          )}
         </View>
 
         {/* Daily Targets */}
@@ -369,12 +426,12 @@ export default function ProfileScreen() {
                 <TextInput
                   style={[s.fieldInput, { minWidth: 80, textAlign: "right" }]}
                   value={String(draft[key] ?? "")}
-                  onChangeText={(v) => setDraft((p) => ({ ...p, [key]: parseFloat(v) || 0 }))}
+                  onChangeText={(v) => setDraft((p) => ({ ...p, [key]: v ? parseFloat(v) : null }))}
                   keyboardType="numeric"
                   placeholderTextColor={colors.mutedForeground}
                 />
               ) : (
-                <Text style={s.infoValue}>{String(profile[key])} {unit}</Text>
+                <Text style={s.infoValue}>{profile[key] != null ? `${profile[key]} ${unit}` : "—"}</Text>
               )}
             </View>
           ))}

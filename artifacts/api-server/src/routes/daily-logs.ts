@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { dailyLogsTable } from "@workspace/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -92,6 +92,36 @@ router.post("/daily-logs", async (req, res) => {
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Failed to save daily log" });
+  }
+});
+
+// GET /api/daily-logs/history?userId=xxx&limit=7
+router.get("/daily-logs/history", async (req, res) => {
+  const { userId, limit } = req.query;
+  if (!userId || typeof userId !== "string") {
+    res.status(400).json({ error: "Missing userId" });
+    return;
+  }
+  const n = Math.min(parseInt(limit as string) || 7, 30);
+  try {
+    const rows = await db
+      .select()
+      .from(dailyLogsTable)
+      .where(eq(dailyLogsTable.userId, userId))
+      .orderBy(desc(dailyLogsTable.date))
+      .limit(n);
+    const history = rows.map((r) => ({
+      date: r.date,
+      totalCalories: r.totalCalories ?? 0,
+      totalProtein: r.totalProtein ?? 0,
+      totalCarbs: r.totalCarbs ?? 0,
+      totalFats: r.totalFats ?? 0,
+      water: r.water ?? 0,
+    }));
+    res.json({ history });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to fetch diet history" });
   }
 });
 

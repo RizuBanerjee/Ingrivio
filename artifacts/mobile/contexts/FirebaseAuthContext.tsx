@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { type FirebaseUser, registerEmail, loginEmail, logout, resetPassword, onAuthStateChanged } from "@/firebase/firebaseAuth";
-import { syncUserProfile, fetchUserProfile, syncDailyLog, syncSavedRecipes, syncGeneratedRecipes } from "@/firebase/firestoreClient";
+import { syncUserProfile, syncDailyLog, syncSavedRecipes, syncGeneratedRecipes } from "@/firebase/firestoreClient";
 import { logLogin, logSignUp } from "@/firebase/analyticsClient";
 import { useApp } from "./AppContext";
 import { createUser, getUserByFirebase } from "@/services/ai";
@@ -39,25 +39,7 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
   const [dbUser, setDbUser] = useState<UserRow | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { profile, todayLog, savedRecipes, generatedRecipes } = useApp();
-
-  useEffect(() => {
-    const unsub = onAuthStateChanged(async (u) => {
-      setUser(u);
-      if (u) {
-        try {
-          const existing = await getUserByFirebase(u.uid);
-          setDbUser(existing);
-        } catch {
-          setDbUser(null);
-        }
-      } else {
-        setDbUser(null);
-      }
-      setIsLoading(false);
-    });
-    return unsub;
-  }, []);
+  const { profile, todayLog, savedRecipes, generatedRecipes, resetProfile, loadProfileFromUser } = useApp();
 
   const syncData = useCallback(async (uid: string) => {
     try {
@@ -74,6 +56,29 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
     }
   }, [user, isLoading, syncData]);
 
+  useEffect(() => {
+    const unsub = onAuthStateChanged(async (u) => {
+      setUser(u);
+      if (u) {
+        // User is logged in → fetch their DB profile
+        try {
+          const existing = await getUserByFirebase(u.uid);
+          setDbUser(existing);
+          loadProfileFromUser(existing);
+        } catch {
+          setDbUser(null);
+          loadProfileFromUser(null);
+        }
+      } else {
+        // User is logged out → reset to guest
+        setDbUser(null);
+        loadProfileFromUser(null);
+      }
+      setIsLoading(false);
+    });
+    return unsub;
+  }, [loadProfileFromUser]);
+
   const signUp = useCallback(async (email: string, password: string, name: string) => {
     setError(null);
     try {
@@ -83,12 +88,15 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
       try {
         const u = await createUser(cred.user.uid, name, email);
         setDbUser(u);
-      } catch {}
+        loadProfileFromUser(u);
+      } catch {
+        loadProfileFromUser(null);
+      }
     } catch (e: any) {
       setError(e.message || "Sign up failed");
       throw e;
     }
-  }, []);
+  }, [loadProfileFromUser]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     setError(null);
@@ -99,28 +107,32 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
       try {
         const u = await getUserByFirebase(cred.user.uid);
         setDbUser(u);
+        loadProfileFromUser(u);
       } catch {
-        // Create if not exists
         try {
           const u = await createUser(cred.user.uid, cred.user.displayName || email.split("@")[0], email);
           setDbUser(u);
-        } catch {}
+          loadProfileFromUser(u);
+        } catch {
+          loadProfileFromUser(null);
+        }
       }
     } catch (e: any) {
       setError(e.message || "Sign in failed");
       throw e;
     }
-  }, []);
+  }, [loadProfileFromUser]);
 
   const signOutUser = useCallback(async () => {
     setError(null);
     try {
       await logout();
       setDbUser(null);
+      resetProfile();
     } catch (e: any) {
       setError(e.message || "Sign out failed");
     }
-  }, []);
+  }, [resetProfile]);
 
   const updateDisplayName = useCallback(async (name: string) => {
     if (!user) return;

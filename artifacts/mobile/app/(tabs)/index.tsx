@@ -23,7 +23,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { profile, todayLog, addWater } = useApp();
   const { user, dbUser } = useFirebaseAuth();
-  const isLoggedIn = !!user && !dbUser === false;
+  const isLoggedIn = !!user;
 
   const [historyView, setHistoryView] = useState<"daily" | "weekly" | "monthly">("daily");
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -37,11 +37,14 @@ export default function HomeScreen() {
   const protein = todayLog.entries.reduce((s, e) => s + e.protein, 0);
   const carbs = todayLog.entries.reduce((s, e) => s + e.carbs, 0);
   const fats = todayLog.entries.reduce((s, e) => s + e.fats, 0);
-  const remaining = Math.max(0, profile.calorieGoal - consumed);
+  const remaining = Math.max(0, (profile.calorieGoal ?? 2000) - consumed);
 
   const hour = new Date().getHours();
   const greetKey = hour < 12 ? "good_morning" : hour < 17 ? "good_afternoon" : "good_evening";
   const dateStr = new Date().toLocaleDateString("en-IN", { weekday: "long", month: "long", day: "numeric" });
+
+  // Name: use DB username first, then Firebase displayName, then profile.name, then "Namaste"
+  const greetingName = (dbUser?.username || user?.displayName || profile.name || "Namaste").split(" ")[0];
 
   const meals = ["breakfast", "lunch", "dinner", "snack"] as const;
   const mealIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -88,7 +91,7 @@ export default function HomeScreen() {
           wd.push({ date: d, calories: cal, label: dayNames[d.getDay()] });
         }
         setWeeklyData(wd);
-        setWeeklyMax(Math.max(...wd.map((d) => d.calories), profile.calorieGoal, 1));
+        setWeeklyMax(Math.max(...wd.map((d) => d.calories), (profile.calorieGoal ?? 2000), 1));
 
         // Monthly: 4 weeks of this month
         const md = [];
@@ -181,7 +184,7 @@ export default function HomeScreen() {
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
             <View>
               <Text style={s.greeting}>{t(greetKey)}</Text>
-              <Text style={s.name}>{(profile.name || user?.displayName || "Namaste").split(" ")[0]}</Text>
+              <Text style={s.name}>{greetingName}</Text>
               <Text style={s.date}>{dateStr}</Text>
             </View>
             <TouchableOpacity
@@ -195,7 +198,7 @@ export default function HomeScreen() {
 
         <View style={s.ringSection}>
           <View style={s.ringWrap}>
-            <CalorieRing consumed={consumed} goal={profile.calorieGoal} size={200} />
+            <CalorieRing consumed={consumed} goal={profile.calorieGoal ?? 0} size={200} />
             <View style={s.ringLabel} pointerEvents="none">
               <Text style={s.ringCal}>{consumed}</Text>
               <Text style={s.ringUnit}>{t("kcal_eaten")}</Text>
@@ -207,9 +210,9 @@ export default function HomeScreen() {
         <View style={s.card}>
           <Text style={s.cardTitle}>{t("macros")}</Text>
           <MacroBars
-            protein={protein} proteinGoal={profile.proteinGoal}
-            carbs={carbs} carbsGoal={profile.carbsGoal}
-            fats={fats} fatsGoal={profile.fatsGoal}
+            protein={protein} proteinGoal={profile.proteinGoal ?? 0}
+            carbs={carbs} carbsGoal={profile.carbsGoal ?? 0}
+            fats={fats} fatsGoal={profile.fatsGoal ?? 0}
           />
         </View>
 
@@ -370,7 +373,7 @@ export default function HomeScreen() {
                   <View key={i} style={{ flex: 1, alignItems: "center" }}>
                     <View style={{
                       width: "100%", height: Math.max((d.calories / maxWeeklyCal) * 100, 4),
-                      backgroundColor: d.calories > profile.calorieGoal ? colors.destructive : colors.primary,
+                      backgroundColor: d.calories > (profile.calorieGoal ?? 0) ? colors.destructive : colors.primary,
                       borderRadius: 4, opacity: 0.8,
                     }} />
                     <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginTop: 4 }}>
@@ -411,12 +414,12 @@ export default function HomeScreen() {
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 }}>
                 <View style={{ flex: 1, height: 8, backgroundColor: colors.secondary, borderRadius: 4 }}>
                   <View style={{
-                    width: `${Math.min((consumed / profile.calorieGoal) * 100, 100)}%`,
+                    width: `${Math.min((consumed / (profile.calorieGoal ?? 1)) * 100, 100)}%`,
                     height: 8, backgroundColor: colors.primary, borderRadius: 4,
                   }} />
                 </View>
                 <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>
-                  {consumed} / {profile.calorieGoal} kcal
+                  {consumed} / {profile.calorieGoal ?? 0} kcal
                 </Text>
               </View>
               <View style={{ flexDirection: "row", gap: 8 }}>

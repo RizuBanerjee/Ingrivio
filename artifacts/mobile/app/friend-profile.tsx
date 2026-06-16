@@ -9,8 +9,8 @@ import { router, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
-import { getPublicUser } from "@/services/ai";
-import type { PublicUser } from "@/services/ai";
+import { getPublicUser, getFriendDietHistory } from "@/services/ai";
+import type { PublicUser, DietHistoryEntry } from "@/services/ai";
 
 const GOALS: Record<string, string> = {
   lose: "Lose Weight",
@@ -26,6 +26,7 @@ export default function FriendProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
 
   const [user, setUser] = useState<PublicUser | null>(null);
+  const [dietHistory, setDietHistory] = useState<DietHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,8 +34,12 @@ export default function FriendProfileScreen() {
     if (!userId) return;
     (async () => {
       try {
-        const u = await getPublicUser(userId);
+        const [u, historyRes] = await Promise.all([
+          getPublicUser(userId),
+          getFriendDietHistory(userId).catch(() => ({ history: [] as DietHistoryEntry[] })),
+        ]);
         setUser(u);
+        setDietHistory(historyRes.history);
       } catch {
         setError("Could not load profile.");
       } finally {
@@ -110,7 +115,7 @@ export default function FriendProfileScreen() {
                 <Text style={s.profileName}>{user.username}</Text>
                 <Text style={s.userId}>{user.userId}</Text>
                 <View style={s.goalBadge}>
-                  <Text style={s.goalText}>{GOALS[user.goal ?? "maintain"]}</Text>
+                  <Text style={s.goalText}>{GOALS[user.goal ?? "maintain"] || user.goal || "—"}</Text>
                 </View>
               </View>
             </View>
@@ -124,9 +129,9 @@ export default function FriendProfileScreen() {
             <View style={[s.card, { marginTop: -14 }]}>
               <Text style={s.cardTitle}>Basic Info</Text>
               {[
-                ["Age", `${user.age ?? "—"} yrs`],
-                ["Height", `${user.height ?? "—"} cm`],
-                ["Weight", `${user.weight ?? "—"} kg`],
+                ["Age", user.age != null ? `${user.age} yrs` : "—"],
+                ["Height", user.height != null ? `${user.height} cm` : "—"],
+                ["Weight", user.weight != null ? `${user.weight} kg` : "—"],
                 ["Gender", user.gender ? (user.gender.charAt(0).toUpperCase() + user.gender.slice(1)) : "—"],
               ].map(([label, value], i, arr) => (
                 <View key={label} style={[s.infoRow, i === arr.length - 1 && s.infoRowLast]}>
@@ -154,17 +159,32 @@ export default function FriendProfileScreen() {
             <View style={s.card}>
               <Text style={s.cardTitle}>Daily Targets</Text>
               {[
-                ["Calories", `${user.calorieGoal ?? "—"} kcal`],
-                ["Protein", `${user.proteinGoal ?? "—"} g`],
-                ["Carbs", `${user.carbsGoal ?? "—"} g`],
-                ["Fats", `${user.fatsGoal ?? "—"} g`],
-                ["Water", `${user.waterGoal ?? "—"} glasses`],
+                ["Calories", user.calorieGoal != null ? `${user.calorieGoal} kcal` : "—"],
+                ["Protein", user.proteinGoal != null ? `${user.proteinGoal} g` : "—"],
+                ["Carbs", user.carbsGoal != null ? `${user.carbsGoal} g` : "—"],
+                ["Fats", user.fatsGoal != null ? `${user.fatsGoal} g` : "—"],
+                ["Water", user.waterGoal != null ? `${user.waterGoal} glasses` : "—"],
               ].map(([label, value], i, arr) => (
                 <View key={label} style={[s.infoRow, i === arr.length - 1 && s.infoRowLast]}>
                   <Text style={s.infoLabel}>{label}</Text>
                   <Text style={s.infoValue}>{value}</Text>
                 </View>
               ))}
+            </View>
+
+            {/* Diet History */}
+            <View style={s.card}>
+              <Text style={s.cardTitle}>Diet History</Text>
+              {dietHistory.length > 0 ? (
+                dietHistory.map((entry, i, arr) => (
+                  <View key={entry.date} style={[s.infoRow, i === arr.length - 1 && s.infoRowLast]}>
+                    <Text style={s.infoLabel}>{entry.date}</Text>
+                    <Text style={s.infoValue}>{entry.totalCalories} kcal</Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={s.empty}>No diet history available.</Text>
+              )}
             </View>
           </>
         )}

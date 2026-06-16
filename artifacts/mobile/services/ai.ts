@@ -260,6 +260,15 @@ export interface NotificationRow {
   expiresAt?: string | null;
 }
 
+export interface DietHistoryEntry {
+  date: string;
+  totalCalories: number;
+  totalProtein: number;
+  totalCarbs: number;
+  totalFats: number;
+  water: number;
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${getBase()}${path}`);
   if (!res.ok) {
@@ -326,6 +335,10 @@ export async function getFriends(userId: string): Promise<{ friends: FriendRow[]
 
 export async function getNotifications(userId: string): Promise<{ notifications: NotificationRow[] }> {
   return get(`/api/notifications?userId=${encodeURIComponent(userId)}`);
+}
+
+export async function getFriendDietHistory(userId: string, limit?: number): Promise<{ history: DietHistoryEntry[] }> {
+  return get(`/api/daily-logs/history?userId=${encodeURIComponent(userId)}&limit=${limit ?? 7}`);
 }
 
 export async function markNotificationRead(id: number): Promise<{ success: boolean }> {
