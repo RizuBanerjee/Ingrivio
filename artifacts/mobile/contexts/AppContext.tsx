@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { getDailyLog, saveDailyLog } from "@/services/ai";
+import { getDailyLog, saveDailyLog, getSavedRecipesFromDB, saveRecipeToDB, deleteSavedRecipeFromDB } from "@/services/ai";
 import { getAuth } from "firebase/auth";
 import { getApp } from "firebase/app";
 import type { UserRow } from "@/services/ai";
@@ -181,7 +181,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setSavedRecipes([]);
         }
 
-        // If logged in, try to sync today's log from DB
+        // If logged in, try to sync today's log and saved recipes from DB
         if (userId) {
           try {
             const dbLog = await getDailyLog(userId, todayDate());
@@ -193,6 +193,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               };
               setTodayLog(merged);
               AsyncStorage.setItem(logKey, JSON.stringify(merged)).catch(() => {});
+            }
+          } catch {}
+          try {
+            const dbSaved = await getSavedRecipesFromDB(userId);
+            if (dbSaved && dbSaved.recipes.length > 0) {
+              setSavedRecipes(dbSaved.recipes);
+              AsyncStorage.setItem(savedKey, JSON.stringify(dbSaved.recipes)).catch(() => {});
             }
           } catch {}
         }
@@ -345,16 +352,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSavedRecipes((prev) => {
       if (prev.find((r) => r.id === recipe.id)) return prev;
       const next = [recipe, ...prev];
+      // Sync to DB
+      if (userId) {
+        saveRecipeToDB(userId, recipe).catch(() => {});
+      }
       return next;
     });
-  }, []);
+  }, [userId]);
 
   const unsaveRecipe = useCallback((id: string) => {
     setSavedRecipes((prev) => {
       const next = prev.filter((r) => r.id !== id);
+      // Sync to DB
+      if (userId) {
+        deleteSavedRecipeFromDB(userId, id).catch(() => {});
+      }
       return next;
     });
-  }, []);
+  }, [userId]);
 
   const isRecipeSaved = useCallback(
     (id: string) => savedRecipes.some((r) => r.id === id),

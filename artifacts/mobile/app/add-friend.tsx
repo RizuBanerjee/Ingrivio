@@ -32,6 +32,11 @@ export default function AddFriendScreen() {
     setResult(null);
     setSentTo(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (dbUser && query.trim() === dbUser.userId) {
+      setError("You cannot send a friend request to yourself.");
+      setLoading(false);
+      return;
+    }
     try {
       const r = await searchUserById(query.trim());
       setResult(r);

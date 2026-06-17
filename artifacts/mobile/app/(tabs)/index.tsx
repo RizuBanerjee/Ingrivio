@@ -368,20 +368,30 @@ export default function HomeScreen() {
               <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 8 }}>
                 Calories (last 7 days)
               </Text>
-              <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8, height: 120, paddingBottom: 4 }}>
-                {weeklyData.map((d, i) => (
-                  <View key={i} style={{ flex: 1, alignItems: "center" }}>
-                    <View style={{
-                      width: "100%", height: Math.max((d.calories / maxWeeklyCal) * 100, 4),
-                      backgroundColor: d.calories > (profile.calorieGoal ?? 0) ? colors.destructive : colors.primary,
-                      borderRadius: 4, opacity: 0.8,
-                    }} />
-                    <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginTop: 4 }}>
-                      {d.label.slice(0, 3)}
-                    </Text>
-                  </View>
-                ))}
+              <View style={{ flexDirection: "row", gap: 8, height: 120, paddingBottom: 4 }}>
+                <View style={{ width: 32, justifyContent: "space-between", alignItems: "flex-end", paddingRight: 4 }}>
+                  <Text style={{ fontSize: 8, color: colors.mutedForeground }}>5000</Text>
+                  <Text style={{ fontSize: 8, color: colors.mutedForeground }}>2000</Text>
+                  <Text style={{ fontSize: 8, color: colors.mutedForeground }}>1000</Text>
+                  <Text style={{ fontSize: 8, color: colors.mutedForeground }}>500</Text>
+                  <Text style={{ fontSize: 8, color: colors.mutedForeground }}>0</Text>
+                </View>
+                <View style={{ flex: 1, flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
+                  {weeklyData.map((d, i) => (
+                    <View key={i} style={{ flex: 1, alignItems: "center" }}>
+                      <View style={{
+                        width: "100%", height: Math.max((d.calories / maxWeeklyCal) * 100, 4),
+                        backgroundColor: d.calories > (profile.calorieGoal ?? 0) ? colors.destructive : colors.primary,
+                        borderRadius: 4, opacity: 0.8,
+                      }} />
+                      <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginTop: 4 }}>
+                        {d.label.slice(0, 3)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
               </View>
+              <Text style={{ fontSize: 9, color: colors.mutedForeground, marginTop: 2, alignSelf: "flex-end" }}>kcal</Text>
             </View>
           )}
 
@@ -390,19 +400,28 @@ export default function HomeScreen() {
               <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 8 }}>
                 Weekly Calories (this month)
               </Text>
-              <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 12, height: 120, paddingBottom: 4 }}>
-                {monthlyData.map((d, i) => (
-                  <View key={i} style={{ flex: 1, alignItems: "center" }}>
-                    <View style={{
-                      width: "100%", height: Math.max((d.calories / maxMonthlyCal) * 100, 4),
-                      backgroundColor: colors.primary, borderRadius: 4, opacity: 0.8,
-                    }} />
-                    <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginTop: 4 }}>
-                      {d.week}
-                    </Text>
-                  </View>
-                ))}
+              <View style={{ flexDirection: "row", gap: 8, height: 120, paddingBottom: 4 }}>
+                <View style={{ width: 32, justifyContent: "space-between", alignItems: "flex-end", paddingRight: 4 }}>
+                  <Text style={{ fontSize: 8, color: colors.mutedForeground }}>100k</Text>
+                  <Text style={{ fontSize: 8, color: colors.mutedForeground }}>50k</Text>
+                  <Text style={{ fontSize: 8, color: colors.mutedForeground }}>20k</Text>
+                  <Text style={{ fontSize: 8, color: colors.mutedForeground }}>0</Text>
+                </View>
+                <View style={{ flex: 1, flexDirection: "row", alignItems: "flex-end", gap: 12 }}>
+                  {monthlyData.map((d, i) => (
+                    <View key={i} style={{ flex: 1, alignItems: "center" }}>
+                      <View style={{
+                        width: "100%", height: Math.max((d.calories / maxMonthlyCal) * 100, 4),
+                        backgroundColor: colors.primary, borderRadius: 4, opacity: 0.8,
+                      }} />
+                      <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginTop: 4 }}>
+                        {d.week}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
               </View>
+              <Text style={{ fontSize: 9, color: colors.mutedForeground, marginTop: 2, alignSelf: "flex-end" }}>kcal</Text>
             </View>
           )}
 

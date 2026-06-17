@@ -10,7 +10,7 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
-import { getFriends } from "@/services/ai";
+import { getFriends, removeFriend } from "@/services/ai";
 import type { FriendRow } from "@/services/ai";
 
 export default function FriendsScreen() {
@@ -21,6 +21,7 @@ export default function FriendsScreen() {
 
   const [friends, setFriends] = useState<FriendRow[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!dbUser) return;
@@ -34,6 +35,20 @@ export default function FriendsScreen() {
     setRefreshing(true);
     await load();
     setRefreshing(false);
+  };
+
+  const handleRemoveFriend = async (friendId: string) => {
+    if (!dbUser || removing) return;
+    setRemoving(friendId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await removeFriend(dbUser.userId, friendId);
+      setFriends((prev) => prev.filter((f) => f.friendId !== friendId));
+    } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setRemoving(null);
+    }
   };
 
   React.useEffect(() => { load(); }, [load]);
@@ -93,24 +108,34 @@ export default function FriendsScreen() {
           )}
 
           {friends.map((friend, idx) => (
-            <TouchableOpacity
-              key={friend.id}
-              style={[s.userRow, idx === friends.length - 1 && s.userRowLast]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push(`/friend-profile?userId=${encodeURIComponent(friend.friendId)}`);
-              }}
-              activeOpacity={0.7}
-            >
-              <View style={s.avatar}>
-                <Text style={s.avatarText}>{friend.friendUsername.charAt(0).toUpperCase()}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.userName}>{friend.friendUsername}</Text>
-                <Text style={s.userId}>{friend.friendId}</Text>
-              </View>
-              <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-            </TouchableOpacity>
+            <View key={friend.id} style={[s.userRow, idx === friends.length - 1 && s.userRowLast]}>
+              <TouchableOpacity
+                style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push(`/friend-profile?userId=${encodeURIComponent(friend.friendId)}`);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={s.avatar}>
+                  <Text style={s.avatarText}>{friend.friendUsername.charAt(0).toUpperCase()}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.userName}>{friend.friendUsername}</Text>
+                  <Text style={s.userId}>{friend.friendId}</Text>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleRemoveFriend(friend.friendId)}
+                style={{
+                  padding: 8, borderRadius: 8,
+                  backgroundColor: colors.error + "15",
+                }}
+                disabled={removing === friend.friendId}
+              >
+                <Feather name="x" size={16} color={removing === friend.friendId ? colors.border : colors.error} />
+              </TouchableOpacity>
+            </View>
           ))}
         </View>
 

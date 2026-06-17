@@ -22,3 +22,4 @@ export * from "./users";
 export * from "./friendRequests";
 export * from "./friends";
 export * from "./notifications";
+export * from "./savedRecipes";

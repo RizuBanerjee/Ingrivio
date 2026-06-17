@@ -341,6 +341,20 @@ export async function getFriendDietHistory(userId: string, limit?: number): Prom
   return get(`/api/daily-logs/history?userId=${encodeURIComponent(userId)}&limit=${limit ?? 7}`);
 }
 
+export async function getSavedRecipesFromDB(userId: string): Promise<{ recipes: any[] }> {
+  return get(`/api/saved-recipes?userId=${encodeURIComponent(userId)}`);
+}
+
+export async function saveRecipeToDB(userId: string, recipe: any): Promise<{ success: boolean }> {
+  return post("/api/saved-recipes", { userId, recipe });
+}
+
+export async function deleteSavedRecipeFromDB(userId: string, recipeId: string): Promise<{ success: boolean }> {
+  const res = await fetch(`${getBase()}/api/saved-recipes?userId=${encodeURIComponent(userId)}&recipeId=${encodeURIComponent(recipeId)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete saved recipe");
+  return res.json() as Promise<{ success: boolean }>;
+}
+
 export async function markNotificationRead(id: number): Promise<{ success: boolean }> {
   const res = await fetch(`${getBase()}/api/notifications/${id}/read`, { method: "PUT" });
   if (!res.ok) throw new Error("Failed to mark as read");

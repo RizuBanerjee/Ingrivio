@@ -12,6 +12,10 @@ router.post("/friends/request", async (req, res) => {
     res.status(400).json({ error: "Missing senderId or receiverId" });
     return;
   }
+  if (senderId === receiverId) {
+    res.status(400).json({ error: "You cannot send a friend request to yourself" });
+    return;
+  }
   try {
     // Check both users exist
     const sender = await db.select().from(usersTable).where(eq(usersTable.userId, senderId)).limit(1);

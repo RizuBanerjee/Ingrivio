@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput,
   ScrollView, Platform,
@@ -14,7 +14,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useApp, type UserProfile } from "@/contexts/AppContext";
 import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
 import { THEMES, type ThemeId } from "@/constants/themes";
-import { updateUser } from "@/services/ai";
+import { updateUser, getFriendRequests } from "@/services/ai";
 
 const GOALS = [
   { key: "lose", labelKey: "lose_weight" },
@@ -38,11 +38,26 @@ export default function ProfileScreen() {
   const [draft, setDraft] = useState<UserProfile>(profile);
   const [editName, setEditName] = useState(isLoggedIn ? (user?.displayName || "") : (profile.name || ""));
   const [saving, setSaving] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState(0);
 
   const consumed = todayLog.entries.reduce((s, e) => s + e.calories, 0);
   const bmi = (profile.height ?? 0) > 0 && (profile.weight ?? 0) > 0
     ? (profile.weight! / Math.pow(profile.height! / 100, 2))
     : 0;
+
+  // Poll pending friend requests
+  useEffect(() => {
+    if (!isLoggedIn || !dbUser) return;
+    const check = async () => {
+      try {
+        const r = await getFriendRequests(dbUser.userId);
+        setPendingRequests(r.received.filter((req: any) => req.status === "pending").length);
+      } catch {}
+    };
+    check();
+    const interval = setInterval(check, 30000);
+    return () => clearInterval(interval);
+  }, [isLoggedIn, dbUser]);
 
   const save = async () => {
     if (saving) return;
@@ -453,7 +468,22 @@ export default function ProfileScreen() {
                 style={[s.actionBtn, { flex: 1 }]}
                 onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/friend-requests"); }}
               >
-                <Feather name="user-plus" size={18} color={colors.primary} />
+                <View style={{ position: "relative" }}>
+                  <Feather name="user-plus" size={18} color={colors.primary} />
+                  {pendingRequests > 0 && (
+                    <View style={{
+                      position: "absolute", top: -4, right: -8,
+                      minWidth: 14, height: 14, borderRadius: 7,
+                      backgroundColor: colors.error,
+                      alignItems: "center", justifyContent: "center",
+                      paddingHorizontal: 3,
+                    }}>
+                      <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#FFFFFF" }}>
+                        {pendingRequests}
+                      </Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={s.actionLabel}>Requests</Text>
               </TouchableOpacity>
               <TouchableOpacity
