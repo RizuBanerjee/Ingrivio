@@ -143,6 +143,8 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
       const auth = getAuth(getApp());
       await updateProfile(auth.currentUser!, { displayName: name });
       setUser((prev) => prev ? { ...prev, displayName: name } as FirebaseUser : prev);
+      // Also update dbUser so home tab greeting reflects immediately
+      setDbUser((prev) => prev ? { ...prev, username: name } : prev);
     } catch (e: any) {
       setError(e.message || "Failed to update name");
     }

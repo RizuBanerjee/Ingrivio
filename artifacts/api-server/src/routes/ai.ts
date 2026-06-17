@@ -322,7 +322,7 @@ Return only valid JSON with no markdown. All 10 recipes must be in the array. Ea
           return {
             ...r,
             id: `recipe-${Date.now()}-${i}`,
-            imageUrl: getRecipeImage(name),
+            imageUrl: "",
           };
         });
       }

@@ -139,8 +139,8 @@ export default function ScanScreen() {
       logRecipeGenerated(recipes[0]?.name || "unknown");
       setGeneratedRecipes(recipes);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Navigate to recipes tab
-      router.navigate("/recipes");
+      // Navigate to recipes tab with generated tab active
+      router.push("/recipes?tab=generated");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to generate recipes. Please try again.");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

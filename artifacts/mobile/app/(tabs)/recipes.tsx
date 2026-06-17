@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/contexts/AppContext";
@@ -33,9 +33,17 @@ export default function RecipesScreen() {
     isRecipeSaved,
   } = useApp();
 
-  const [tab, setTab] = useState<Tab>("generated");
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const [tab, setTab] = useState<Tab>(tabParam === "saved" ? "saved" : "generated");
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // Sync tab from URL param when it changes
+  useEffect(() => {
+    if (tabParam === "saved" || tabParam === "generated") {
+      setTab(tabParam);
+    }
+  }, [tabParam]);
 
   const recipes: Recipe[] = tab === "generated" ? generatedRecipes : savedRecipes;
   const filtered = recipes.filter((r) =>

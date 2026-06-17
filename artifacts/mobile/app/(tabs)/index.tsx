@@ -12,9 +12,96 @@ import { useApp } from "@/contexts/AppContext";
 import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
 import { CalorieRing } from "@/components/CalorieRing";
 import { MacroBars } from "@/components/MacroBars";
-import { getDailyLog, getNotifications } from "@/services/ai";
+import { getDailyLog, getNotifications, markAllNotificationsRead } from "@/services/ai";
 
 const { width: SCREEN_W } = Dimensions.get("window");
+
+function DailyView({ selectedDate, userId, profileGoal, colors }: {
+  selectedDate: Date;
+  userId?: string;
+  profileGoal: number;
+  colors: any;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<{ calories: number; protein: number; carbs: number; fats: number } | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    const dateKey = selectedDate.toISOString().split("T")[0];
+    setLoading(true);
+    getDailyLog(userId, dateKey)
+      .then((log) => {
+        setData({
+          calories: log?.totalCalories ?? 0,
+          protein: log?.totalProtein ?? 0,
+          carbs: log?.totalCarbs ?? 0,
+          fats: log?.totalFats ?? 0,
+        });
+      })
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [selectedDate, userId]);
+
+  if (!userId) {
+    return (
+      <View>
+        <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 8 }}>
+          {selectedDate.toLocaleDateString("en-IN", { weekday: "long", month: "short", day: "numeric" })}
+        </Text>
+        <Text style={{ fontSize: 13, color: colors.mutedForeground, textAlign: "center", paddingVertical: 12 }}>Sign in to view history</Text>
+      </View>
+    );
+  }
+
+  if (loading) {
+    return (
+      <View>
+        <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 8 }}>
+          {selectedDate.toLocaleDateString("en-IN", { weekday: "long", month: "short", day: "numeric" })}
+        </Text>
+        <Text style={{ fontSize: 13, color: colors.mutedForeground, textAlign: "center", paddingVertical: 12 }}>Loading...</Text>
+      </View>
+    );
+  }
+
+  const consumed = data?.calories ?? 0;
+  const protein = data?.protein ?? 0;
+  const carbs = data?.carbs ?? 0;
+  const fats = data?.fats ?? 0;
+
+  return (
+    <View>
+      <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 8 }}>
+        {selectedDate.toLocaleDateString("en-IN", { weekday: "long", month: "short", day: "numeric" })}
+      </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 }}>
+        <View style={{ flex: 1, height: 8, backgroundColor: colors.secondary, borderRadius: 4 }}>
+          <View style={{
+            width: `${Math.min((consumed / (profileGoal || 1)) * 100, 100)}%`,
+            height: 8, backgroundColor: colors.primary, borderRadius: 4,
+          }} />
+        </View>
+        <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>
+          {consumed} / {profileGoal} kcal
+        </Text>
+      </View>
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        <View style={{ flex: 1, backgroundColor: colors.secondary, borderRadius: 8, padding: 8, alignItems: "center" }}>
+          <Text style={{ fontSize: 10, color: colors.mutedForeground }}>Protein</Text>
+          <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.foreground }}>{protein}g</Text>
+        </View>
+        <View style={{ flex: 1, backgroundColor: colors.secondary, borderRadius: 8, padding: 8, alignItems: "center" }}>
+          <Text style={{ fontSize: 10, color: colors.mutedForeground }}>Carbs</Text>
+          <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.foreground }}>{carbs}g</Text>
+        </View>
+        <View style={{ flex: 1, backgroundColor: colors.secondary, borderRadius: 8, padding: 8, alignItems: "center" }}>
+          <Text style={{ fontSize: 10, color: colors.mutedForeground }}>Fats</Text>
+          <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.foreground }}>{fats}g</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
 
 export default function HomeScreen() {
   const colors = useColors();
@@ -134,18 +221,25 @@ export default function HomeScreen() {
     return () => clearInterval(interval);
   }, [dbUser?.userId]);
 
-  // Nice rounded axis labels
+  // Nice rounded axis labels — 4 evenly spaced values (top to bottom)
   const niceAxis = (max: number) => {
-    if (max <= 0) return [0, 500, 1000, 2000, 5000];
+    if (max <= 0) return [0, 0, 0, 0];
+    // Round max up to a nice number
     const digits = Math.floor(Math.log10(max));
-    const step = Math.pow(10, digits);
-    const raw = Math.ceil(max / step) * step;
-    const top = Math.max(raw, step);
-    const mid = top / 2;
-    const q = mid / 2;
-    if (top < 1000) return [top, mid, q, 0];
-    const k = top / 1000;
-    return [top, Math.round(mid), Math.round(q), 0];
+    const base = Math.pow(10, digits);
+    const ratio = max / base;
+    let niceMax: number;
+    if (ratio <= 1.2) niceMax = base;
+    else if (ratio <= 2.5) niceMax = base * 2.5;
+    else if (ratio <= 5) niceMax = base * 5;
+    else niceMax = base * 10;
+    const step = niceMax / 3;
+    return [
+      Math.round(niceMax),
+      Math.round(niceMax - step),
+      Math.round(niceMax - step * 2),
+      0,
+    ];
   };
 
   const wAxis = niceAxis(weeklyMax);
@@ -222,7 +316,15 @@ export default function HomeScreen() {
             </View>
             <TouchableOpacity
               style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" }}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/notifications"); }}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                // Mark all notifications as read when opening notifications
+                if (dbUser?.userId) {
+                  markAllNotificationsRead(dbUser.userId).catch(() => {});
+                  setUnreadNotifs(0);
+                }
+                router.push("/notifications");
+              }}
             >
               <View style={{ position: "relative" }}>
                 <Feather name="bell" size={20} color="#FFFFFF" />
@@ -504,36 +606,12 @@ export default function HomeScreen() {
           )}
 
           {historyView === "daily" && (
-            <View>
-              <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 8 }}>
-                {selectedDate.toLocaleDateString("en-IN", { weekday: "long", month: "short", day: "numeric" })}
-              </Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 }}>
-                <View style={{ flex: 1, height: 8, backgroundColor: colors.secondary, borderRadius: 4 }}>
-                  <View style={{
-                    width: `${Math.min((consumed / (profile.calorieGoal ?? 1)) * 100, 100)}%`,
-                    height: 8, backgroundColor: colors.primary, borderRadius: 4,
-                  }} />
-                </View>
-                <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>
-                  {consumed} / {profile.calorieGoal ?? 0} kcal
-                </Text>
-              </View>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <View style={{ flex: 1, backgroundColor: colors.secondary, borderRadius: 8, padding: 8, alignItems: "center" }}>
-                  <Text style={{ fontSize: 10, color: colors.mutedForeground }}>Protein</Text>
-                  <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.foreground }}>{protein}g</Text>
-                </View>
-                <View style={{ flex: 1, backgroundColor: colors.secondary, borderRadius: 8, padding: 8, alignItems: "center" }}>
-                  <Text style={{ fontSize: 10, color: colors.mutedForeground }}>Carbs</Text>
-                  <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.foreground }}>{carbs}g</Text>
-                </View>
-                <View style={{ flex: 1, backgroundColor: colors.secondary, borderRadius: 8, padding: 8, alignItems: "center" }}>
-                  <Text style={{ fontSize: 10, color: colors.mutedForeground }}>Fats</Text>
-                  <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.foreground }}>{fats}g</Text>
-                </View>
-              </View>
-            </View>
+            <DailyView
+              selectedDate={selectedDate}
+              userId={dbUser?.userId || user?.uid}
+              profileGoal={profile.calorieGoal ?? 2000}
+              colors={colors}
+            />
           )}
         </View>
 

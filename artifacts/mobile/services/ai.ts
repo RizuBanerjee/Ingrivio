@@ -34,6 +34,7 @@ export interface NutritionInfo {
   carbs: number;
   fats: number;
   fiber: number;
+  servingAmount?: string;
 }
 
 export interface Recipe {
@@ -358,6 +359,12 @@ export async function deleteSavedRecipeFromDB(userId: string, recipeId: string):
 export async function markNotificationRead(id: number): Promise<{ success: boolean }> {
   const res = await fetch(`${getBase()}/api/notifications/${id}/read`, { method: "PUT" });
   if (!res.ok) throw new Error("Failed to mark as read");
+  return res.json() as Promise<{ success: boolean }>;
+}
+
+export async function markAllNotificationsRead(userId: string): Promise<{ success: boolean }> {
+  const res = await fetch(`${getBase()}/api/notifications/read-all?userId=${encodeURIComponent(userId)}`, { method: "PUT" });
+  if (!res.ok) throw new Error("Failed to mark all as read");
   return res.json() as Promise<{ success: boolean }>;
 }
 

@@ -64,6 +64,22 @@ router.put("/notifications/:id/read", async (req, res) => {
   }
 });
 
+// PUT /api/notifications/read-all?userId=xxx
+router.put("/notifications/read-all", async (req, res) => {
+  const { userId } = req.query;
+  if (!userId || typeof userId !== "string") {
+    res.status(400).json({ error: "Missing userId" });
+    return;
+  }
+  try {
+    await db.update(notificationsTable).set({ read: true }).where(eq(notificationsTable.userId, userId));
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to mark all as read" });
+  }
+});
+
 // POST /api/notifications/cleanup — clean all expired (can be called by cron)
 router.post("/notifications/cleanup", async (req, res) => {
   try {

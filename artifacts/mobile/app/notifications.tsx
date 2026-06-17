@@ -10,7 +10,7 @@ import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
-import { getNotifications, markNotificationRead } from "@/services/ai";
+import { getNotifications, markNotificationRead, markAllNotificationsRead } from "@/services/ai";
 import type { NotificationRow } from "@/services/ai";
 
 export default function NotificationsScreen() {
@@ -40,6 +40,14 @@ export default function NotificationsScreen() {
     try {
       await markNotificationRead(id);
       setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
+    } catch {}
+  };
+
+  const markAllRead = async () => {
+    if (!dbUser) return;
+    try {
+      await markAllNotificationsRead(dbUser.userId);
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     } catch {}
   };
 
@@ -84,11 +92,16 @@ export default function NotificationsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <LinearGradient colors={theme.gradients.header as [string, string, ...string[]]} style={s.headerGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-          <View style={s.headerRow}>
-            <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" }}>
-              <Feather name="arrow-left" size={20} color="#FFFFFF" />
+          <View style={[s.headerRow, { justifyContent: "space-between" }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" }}>
+                <Feather name="arrow-left" size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+              <Text style={s.title}>Notifications</Text>
+            </View>
+            <TouchableOpacity onPress={markAllRead} style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 8 }}>
+              <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: "#FFFFFF" }}>Mark all read</Text>
             </TouchableOpacity>
-            <Text style={s.title}>Notifications</Text>
           </View>
         </LinearGradient>
 
@@ -115,7 +128,9 @@ export default function NotificationsScreen() {
                   {n.title}
                 </Text>
                 <Text style={s.notifBody}>{n.body}</Text>
-                <Text style={s.notifTime}>{new Date(n.createdAt).toLocaleDateString()}</Text>
+                <Text style={s.notifTime}>
+                  {new Date(n.createdAt).toLocaleString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </Text>
               </View>
             </TouchableOpacity>
           ))}

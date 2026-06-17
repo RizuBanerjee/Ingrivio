@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Platform, Dimensions, Image,
+  TouchableOpacity, Platform, Dimensions,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -19,42 +19,6 @@ const CARD_W = SW - 80;
 const DIFFICULTY_COLOR: Record<string, string> = {
   easy: "#40C057", medium: "#FFBA08", hard: "#FF6B35",
 };
-
-function RecipeImageSlide({ url, name, index }: { url: string; name: string; index: number }) {
-  const [err, setErr] = useState(false);
-  const [g1, g2] = getRecipeGradient(name, index);
-  const emoji = getRecipeEmoji(name);
-
-  const slideStyle: { width: number; height: number; borderRadius: number; marginLeft: number; marginRight: number; overflow: "hidden" } = {
-    width: CARD_W, height: 200, borderRadius: 20,
-    marginLeft: 20, marginRight: 8, overflow: "hidden",
-  };
-
-  if (!err) {
-    return (
-      <View style={slideStyle}>
-        <Image
-          source={{ uri: url }}
-          style={{ width: "100%", height: "100%" }}
-          resizeMode="cover"
-          onError={() => setErr(true)}
-        />
-      </View>
-    );
-  }
-  return (
-    <LinearGradient
-      colors={[g1, g2]}
-      style={slideStyle}
-      start={{ x: index % 2 === 0 ? 0 : 1, y: 0 }}
-      end={{ x: index % 2 === 0 ? 1 : 0, y: 1 }}
-    >
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ fontSize: 70 }}>{emoji}</Text>
-      </View>
-    </LinearGradient>
-  );
-}
 
 export default function RecipeDetailScreen() {
   const colors = useColors();
@@ -82,7 +46,6 @@ export default function RecipeDetailScreen() {
   const saved = isRecipeSaved(recipe.id);
   const diffColor = DIFFICULTY_COLOR[recipe.difficulty] ?? colors.accent;
   const [showMealPicker, setShowMealPicker] = useState(false);
-  const [imgErr, setImgErr] = useState(false);
   const [g1, g2] = getRecipeGradient(recipe.name, 0);
   const emoji = getRecipeEmoji(recipe.name);
 
@@ -182,27 +145,17 @@ export default function RecipeDetailScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Real photo carousel with 3 images */}
         <View style={s.imageWrap}>
-          {!imgErr ? (
-            <Image
-              source={{ uri: recipe.imageUrl }}
-              style={{ width: "100%", height: "100%" }}
-              resizeMode="cover"
-              onError={() => setImgErr(true)}
-            />
-          ) : (
-            <LinearGradient
-              colors={[g1, g2]}
-              style={{ width: "100%", height: "100%" }}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ fontSize: 70 }}>{emoji}</Text>
-              </View>
-            </LinearGradient>
-          )}
+          <LinearGradient
+            colors={[g1, g2]}
+            style={{ width: "100%", height: "100%" }}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+              <Text style={{ fontSize: 70 }}>{emoji}</Text>
+            </View>
+          </LinearGradient>
         </View>
 
         <Text style={s.name}>{recipe.name}</Text>
@@ -259,7 +212,7 @@ export default function RecipeDetailScreen() {
         )}
 
         <View style={s.section}>
-          <Text style={s.sectionTitle}>{t("nutrition_per_serving")}</Text>
+          <Text style={s.sectionTitle}>{t("nutrition_per_serving")}{recipe.nutritionInfo.servingAmount ? ` — ${recipe.nutritionInfo.servingAmount}` : ""}</Text>
           {([
             ["Protein", `${recipe.nutritionInfo.protein}g`],
             ["Carbohydrates", `${recipe.nutritionInfo.carbs}g`],

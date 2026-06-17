@@ -53,6 +53,7 @@ export interface NutritionInfo {
   carbs: number;
   fats: number;
   fiber: number;
+  servingAmount?: string;
 }
 
 export interface Recipe {

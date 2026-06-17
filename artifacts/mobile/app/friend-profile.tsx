@@ -10,8 +10,8 @@ import { router, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
-import { getPublicUser, getFriendDietHistory } from "@/services/ai";
-import type { PublicUser, DietHistoryEntry } from "@/services/ai";
+import { getPublicUser, getDailyLog } from "@/services/ai";
+import type { PublicUser } from "@/services/ai";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
@@ -26,7 +26,6 @@ export default function FriendProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
 
   const [user, setUser] = useState<PublicUser | null>(null);
-  const [dietHistory, setDietHistory] = useState<DietHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [historyView, setHistoryView] = useState<"daily" | "weekly" | "monthly">("daily");
@@ -37,6 +36,8 @@ export default function FriendProfileScreen() {
   const [monthlyData, setMonthlyData] = useState<{ week: string; calories: number }[]>([]);
   const [weeklyMax, setWeeklyMax] = useState(1);
   const [monthlyMax, setMonthlyMax] = useState(1);
+  const [selectedDayData, setSelectedDayData] = useState<{ calories: number; protein: number; carbs: number; fats: number } | null>(null);
+  const [dayDataLoading, setDayDataLoading] = useState(false);
 
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const today = new Date();
@@ -58,12 +59,8 @@ export default function FriendProfileScreen() {
     if (!userId) return;
     (async () => {
       try {
-        const [u, historyRes] = await Promise.all([
-          getPublicUser(userId),
-          getFriendDietHistory(userId).catch(() => ({ history: [] as DietHistoryEntry[] })),
-        ]);
+        const u = await getPublicUser(userId);
         setUser(u);
-        setDietHistory(historyRes.history);
       } catch {
         setError("Could not load profile.");
       } finally {
@@ -72,54 +69,84 @@ export default function FriendProfileScreen() {
     })();
   }, [userId]);
 
-  // Load chart data from friend's history
+  // Load daily data for selected date
   useEffect(() => {
-    if (!dietHistory.length) return;
-    const histMap = new Map(dietHistory.map((h) => [h.date, h.totalCalories]));
+    if (!userId) return;
+    const dateKey = selectedDate.toISOString().split("T")[0];
+    setDayDataLoading(true);
+    getDailyLog(userId, dateKey)
+      .then((log) => {
+        setSelectedDayData({
+          calories: log?.totalCalories ?? 0,
+          protein: log?.totalProtein ?? 0,
+          carbs: log?.totalCarbs ?? 0,
+          fats: log?.totalFats ?? 0,
+        });
+      })
+      .catch(() => setSelectedDayData(null))
+      .finally(() => setDayDataLoading(false));
+  }, [userId, selectedDate]);
 
-    // Weekly: 7 days centered on selected date
-    const wd = [];
-    for (let i = -3; i <= 3; i++) {
-      const d = new Date(selectedDate);
-      d.setDate(d.getDate() + i);
-      const dateKey = d.toISOString().split("T")[0];
-      const cal = histMap.get(dateKey) ?? 0;
-      wd.push({ date: d, calories: cal, label: dayNames[d.getDay()] });
-    }
-    setWeeklyData(wd);
-    const wMax = Math.max(...wd.map((d) => d.calories), (user?.calorieGoal ?? 2000), 1);
-    setWeeklyMax(wMax);
+  // Load weekly and monthly data from per-date API calls
+  useEffect(() => {
+    if (!userId) return;
+    (async () => {
+      try {
+        // Weekly: 7 days centered on selected date
+        const wd = [];
+        for (let i = -3; i <= 3; i++) {
+          const d = new Date(selectedDate);
+          d.setDate(d.getDate() + i);
+          const dateKey = d.toISOString().split("T")[0];
+          const log = await getDailyLog(userId, dateKey);
+          const cal = log?.totalCalories ?? 0;
+          wd.push({ date: d, calories: cal, label: dayNames[d.getDay()] });
+        }
+        setWeeklyData(wd);
+        const wMax = Math.max(...wd.map((d) => d.calories), (user?.calorieGoal ?? 2000), 1);
+        setWeeklyMax(wMax);
 
-    // Monthly: weeks of selected month
-    const md = [];
-    const y = selectedDate.getFullYear();
-    const m = selectedDate.getMonth();
-    const totalDays = new Date(y, m + 1, 0).getDate();
-    const weeks = Math.ceil(totalDays / 7);
-    for (let w = 0; w < weeks; w++) {
-      const weekStart = w * 7 + 1;
-      const weekEnd = Math.min(weekStart + 6, totalDays);
-      let weekCal = 0;
-      for (let d = weekStart; d <= weekEnd; d++) {
-        const ds = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-        weekCal += histMap.get(ds) ?? 0;
-      }
-      md.push({ week: `Week ${w + 1}`, calories: weekCal });
-    }
-    setMonthlyData(md);
-    setMonthlyMax(Math.max(...md.map((d) => d.calories), 1));
-  }, [dietHistory, selectedDate, user?.calorieGoal]);
+        // Monthly: weeks of selected month
+        const md = [];
+        const y = selectedDate.getFullYear();
+        const m = selectedDate.getMonth();
+        const totalDays = new Date(y, m + 1, 0).getDate();
+        const weeks = Math.ceil(totalDays / 7);
+        for (let w = 0; w < weeks; w++) {
+          const weekStart = w * 7 + 1;
+          const weekEnd = Math.min(weekStart + 6, totalDays);
+          let weekCal = 0;
+          for (let d = weekStart; d <= weekEnd; d++) {
+            const ds = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+            const log = await getDailyLog(userId, ds);
+            weekCal += log?.totalCalories ?? 0;
+          }
+          md.push({ week: `Week ${w + 1}`, calories: weekCal });
+        }
+        setMonthlyData(md);
+        setMonthlyMax(Math.max(...md.map((d) => d.calories), 1));
+      } catch {}
+    })();
+  }, [userId, selectedDate, user?.calorieGoal]);
 
+  // Nice rounded axis labels — 4 evenly spaced values
   const niceAxis = (max: number) => {
-    if (max <= 0) return [0, 500, 1000, 2000, 5000];
+    if (max <= 0) return [0, 0, 0, 0];
     const digits = Math.floor(Math.log10(max));
-    const step = Math.pow(10, digits);
-    const raw = Math.ceil(max / step) * step;
-    const top = Math.max(raw, step);
-    const mid = top / 2;
-    const q = mid / 2;
-    if (top < 1000) return [top, mid, q, 0];
-    return [top, Math.round(mid), Math.round(q), 0];
+    const base = Math.pow(10, digits);
+    const ratio = max / base;
+    let niceMax: number;
+    if (ratio <= 1.2) niceMax = base;
+    else if (ratio <= 2.5) niceMax = base * 2.5;
+    else if (ratio <= 5) niceMax = base * 5;
+    else niceMax = base * 10;
+    const step = niceMax / 3;
+    return [
+      Math.round(niceMax),
+      Math.round(niceMax - step),
+      Math.round(niceMax - step * 2),
+      0,
+    ];
   };
 
   const wAxis = niceAxis(weeklyMax);
@@ -151,12 +178,10 @@ export default function FriendProfileScreen() {
 
   const initials = (user?.username || "?").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
-  // Find the selected date's entry
-  const selectedEntry = dietHistory.find((h) => h.date === selectedDate.toISOString().split("T")[0]);
-  const selectedCal = selectedEntry?.totalCalories ?? 0;
-  const selectedProtein = selectedEntry?.totalProtein ?? 0;
-  const selectedCarbs = selectedEntry?.totalCarbs ?? 0;
-  const selectedFats = selectedEntry?.totalFats ?? 0;
+  const selectedCal = selectedDayData?.calories ?? 0;
+  const selectedProtein = selectedDayData?.protein ?? 0;
+  const selectedCarbs = selectedDayData?.carbs ?? 0;
+  const selectedFats = selectedDayData?.fats ?? 0;
 
   return (
     <View style={s.container}>
@@ -312,7 +337,9 @@ export default function FriendProfileScreen() {
                   <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 8 }}>
                     {selectedDate.toLocaleDateString("en-IN", { weekday: "long", month: "short", day: "numeric" })}
                   </Text>
-                  {selectedEntry ? (
+                  {dayDataLoading ? (
+                    <Text style={{ fontSize: 13, color: colors.mutedForeground, textAlign: "center", paddingVertical: 12 }}>Loading...</Text>
+                  ) : selectedDayData ? (
                     <>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 }}>
                         <View style={{ flex: 1, height: 8, backgroundColor: colors.secondary, borderRadius: 4 }}>
