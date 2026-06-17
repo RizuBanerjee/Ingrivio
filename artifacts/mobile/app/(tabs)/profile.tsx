@@ -14,7 +14,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useApp, type UserProfile } from "@/contexts/AppContext";
 import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
 import { THEMES, type ThemeId } from "@/constants/themes";
-import { updateUser, getFriendRequests } from "@/services/ai";
+import { updateUser, getFriendRequests, getNotifications } from "@/services/ai";
 
 const GOALS = [
   { key: "lose", labelKey: "lose_weight" },
@@ -39,19 +39,24 @@ export default function ProfileScreen() {
   const [editName, setEditName] = useState(isLoggedIn ? (user?.displayName || "") : (profile.name || ""));
   const [saving, setSaving] = useState(false);
   const [pendingRequests, setPendingRequests] = useState(0);
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
 
   const consumed = todayLog.entries.reduce((s, e) => s + e.calories, 0);
   const bmi = (profile.height ?? 0) > 0 && (profile.weight ?? 0) > 0
     ? (profile.weight! / Math.pow(profile.height! / 100, 2))
     : 0;
 
-  // Poll pending friend requests
+  // Poll pending friend requests and notifications
   useEffect(() => {
     if (!isLoggedIn || !dbUser) return;
     const check = async () => {
       try {
-        const r = await getFriendRequests(dbUser.userId);
-        setPendingRequests(r.received.filter((req: any) => req.status === "pending").length);
+        const [fr, notifs] = await Promise.all([
+          getFriendRequests(dbUser.userId),
+          getNotifications(dbUser.userId),
+        ]);
+        setPendingRequests(fr.received.filter((req: any) => req.status === "pending").length);
+        setUnreadNotifs(notifs.notifications.filter((n: any) => !n.read).length);
       } catch {}
     };
     check();

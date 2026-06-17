@@ -304,8 +304,12 @@ Each recipe must be DIFFERENT from the others — vary the cuisine style (North 
 
 Prioritize traditional Indian dishes. Include authentic spice combinations. If ingredients are non-Indian, suggest fusion or adapt to Indian style.
 
-Return only valid JSON with no markdown. All 10 recipes must be in the array:
-{"recipes":[{"id":"r1","name":"string","description":"string","difficulty":"easy","prepTime":15,"cookTime":20,"calories":450,"servings":${servings},"ingredients":[{"name":"string","amount":"string"}],"instructions":["Step 1..."],"tips":["Tip 1"],"nutritionInfo":{"protein":30,"carbs":45,"fats":15,"fiber":6}}]}`,
+Return only valid JSON with no markdown. All 10 recipes must be in the array. Each recipe MUST have:
+- 5-6 detailed cooking instructions that are clear step-by-step
+- 2-3 practical tips per recipe
+- nutritionInfo must include the amount per serving (e.g., "100g serving") with the label "servingAmount" alongside protein, carbs, fats, fiber
+
+{"recipes":[{"id":"r1","name":"string","description":"string","difficulty":"easy","prepTime":15,"cookTime":20,"calories":450,"servings":${servings},"ingredients":[{"name":"string","amount":"string"}],"instructions":["Step 1: detailed instruction...","Step 2: detailed instruction...","Step 3: detailed instruction...","Step 4: detailed instruction...","Step 5: detailed instruction...","Step 6: detailed instruction..."],"tips":["Tip 1: practical tip","Tip 2: practical tip","Tip 3: practical tip"],"nutritionInfo":{"servingAmount":"100g serving","protein":30,"carbs":45,"fats":15,"fiber":6}}]}`,
       },
     ];
 

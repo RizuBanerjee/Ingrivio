@@ -12,7 +12,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useFirebaseAuth } from "@/contexts/FirebaseAuthContext";
 import { CalorieRing } from "@/components/CalorieRing";
 import { MacroBars } from "@/components/MacroBars";
-import { getDailyLog } from "@/services/ai";
+import { getDailyLog, getNotifications } from "@/services/ai";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
@@ -32,6 +32,8 @@ export default function HomeScreen() {
   const [monthlyData, setMonthlyData] = useState<{ week: string; calories: number }[]>([]);
   const [weeklyMax, setWeeklyMax] = useState(1);
   const [monthlyMax, setMonthlyMax] = useState(1);
+  const [selectedBarIndex, setSelectedBarIndex] = useState<number | null>(null);
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
 
   const consumed = todayLog.entries.reduce((s, e) => s + e.calories, 0);
   const protein = todayLog.entries.reduce((s, e) => s + e.protein, 0);
@@ -74,30 +76,30 @@ export default function HomeScreen() {
     setSelectedDate(new Date(calYear, calMonth + dir, 1));
   };
 
-  // Load real weekly/monthly data from DB
+  // Load real weekly/monthly data from DB based on selected date
   useEffect(() => {
     const uid = dbUser?.userId || user?.uid;
     if (!uid) return;
     (async () => {
       try {
-        // Weekly: last 7 days
+        // Weekly: 7 days centered on selected date (3 before, selected, 3 after)
         const wd = [];
-        for (let i = 6; i >= 0; i--) {
-          const d = new Date(today);
-          d.setDate(d.getDate() - i);
+        for (let i = -3; i <= 3; i++) {
+          const d = new Date(selectedDate);
+          d.setDate(d.getDate() + i);
           const dateKey = d.toISOString().split("T")[0];
           const log = await getDailyLog(uid, dateKey);
           const cal = log?.totalCalories ?? 0;
           wd.push({ date: d, calories: cal, label: dayNames[d.getDay()] });
         }
         setWeeklyData(wd);
-        setWeeklyMax(Math.max(...wd.map((d) => d.calories), (profile.calorieGoal ?? 2000), 1));
+        const maxCal = Math.max(...wd.map((d) => d.calories), (profile.calorieGoal ?? 2000), 1);
+        setWeeklyMax(maxCal);
 
-        // Monthly: 4 weeks of this month
+        // Monthly: weeks of the selected date's month
         const md = [];
-        const now = new Date();
-        const y = now.getFullYear();
-        const m = now.getMonth();
+        const y = selectedDate.getFullYear();
+        const m = selectedDate.getMonth();
         const totalDays = new Date(y, m + 1, 0).getDate();
         const weeks = Math.ceil(totalDays / 7);
         for (let w = 0; w < weeks; w++) {
@@ -115,8 +117,39 @@ export default function HomeScreen() {
         setMonthlyMax(Math.max(...md.map((d) => d.calories), 1));
       } catch {}
     })();
-  }, [dbUser?.userId, user?.uid, profile.calorieGoal]);
+  }, [dbUser?.userId, user?.uid, profile.calorieGoal, selectedDate]);
 
+  // Poll unread notifications
+  useEffect(() => {
+    const uid = dbUser?.userId;
+    if (!uid) return;
+    const check = async () => {
+      try {
+        const r = await getNotifications(uid);
+        setUnreadNotifs(r.notifications.filter((n: any) => !n.read).length);
+      } catch {}
+    };
+    check();
+    const interval = setInterval(check, 30000);
+    return () => clearInterval(interval);
+  }, [dbUser?.userId]);
+
+  // Nice rounded axis labels
+  const niceAxis = (max: number) => {
+    if (max <= 0) return [0, 500, 1000, 2000, 5000];
+    const digits = Math.floor(Math.log10(max));
+    const step = Math.pow(10, digits);
+    const raw = Math.ceil(max / step) * step;
+    const top = Math.max(raw, step);
+    const mid = top / 2;
+    const q = mid / 2;
+    if (top < 1000) return [top, mid, q, 0];
+    const k = top / 1000;
+    return [top, Math.round(mid), Math.round(q), 0];
+  };
+
+  const wAxis = niceAxis(weeklyMax);
+  const mAxis = niceAxis(monthlyMax);
   const maxWeeklyCal = weeklyMax;
   const maxMonthlyCal = monthlyMax;
 
@@ -191,7 +224,22 @@ export default function HomeScreen() {
               style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" }}
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/notifications"); }}
             >
-              <Feather name="bell" size={20} color="#FFFFFF" />
+              <View style={{ position: "relative" }}>
+                <Feather name="bell" size={20} color="#FFFFFF" />
+                {unreadNotifs > 0 && (
+                  <View style={{
+                    position: "absolute", top: -5, right: -6,
+                    minWidth: 14, height: 14, borderRadius: 7,
+                    backgroundColor: colors.error,
+                    alignItems: "center", justifyContent: "center",
+                    paddingHorizontal: 3,
+                  }}>
+                    <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#FFFFFF" }}>
+                      {unreadNotifs}
+                    </Text>
+                  </View>
+                )}
+              </View>
             </TouchableOpacity>
           </View>
         </LinearGradient>
@@ -348,7 +396,12 @@ export default function HomeScreen() {
                           borderRadius: 18,
                           backgroundColor: selectedFlag ? colors.primary : todayFlag ? colors.primary + "30" : "transparent",
                         }}
-                        onPress={() => setSelectedDate(new Date(calYear, calMonth, day))}
+                        onPress={() => {
+                          setSelectedDate(new Date(calYear, calMonth, day));
+                          setShowCalendar(false);
+                          setHistoryView("daily");
+                          setSelectedBarIndex(null);
+                        }}
                       >
                         <Text style={{
                           fontSize: 13, fontFamily: "Inter_500Medium",
@@ -365,20 +418,33 @@ export default function HomeScreen() {
           {/* Graph views */}
           {historyView === "weekly" && (
             <View>
-              <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 8 }}>
-                Calories (last 7 days)
-              </Text>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>
+                  Calories (last 7 days)
+                </Text>
+                <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>kcal</Text>
+              </View>
               <View style={{ flexDirection: "row", gap: 8, height: 120, paddingBottom: 4 }}>
                 <View style={{ width: 32, justifyContent: "space-between", alignItems: "flex-end", paddingRight: 4 }}>
-                  <Text style={{ fontSize: 8, color: colors.mutedForeground }}>5000</Text>
-                  <Text style={{ fontSize: 8, color: colors.mutedForeground }}>2000</Text>
-                  <Text style={{ fontSize: 8, color: colors.mutedForeground }}>1000</Text>
-                  <Text style={{ fontSize: 8, color: colors.mutedForeground }}>500</Text>
-                  <Text style={{ fontSize: 8, color: colors.mutedForeground }}>0</Text>
+                  {wAxis.map((val, idx) => (
+                    <Text key={idx} style={{ fontSize: 8, color: colors.mutedForeground }}>
+                      {val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}
+                    </Text>
+                  ))}
                 </View>
                 <View style={{ flex: 1, flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
                   {weeklyData.map((d, i) => (
-                    <View key={i} style={{ flex: 1, alignItems: "center" }}>
+                    <TouchableOpacity
+                      key={i}
+                      style={{ flex: 1, alignItems: "center" }}
+                      onPress={() => setSelectedBarIndex(selectedBarIndex === i ? null : i)}
+                      activeOpacity={0.8}
+                    >
+                      {selectedBarIndex === i && (
+                        <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 2 }}>
+                          {d.calories}
+                        </Text>
+                      )}
                       <View style={{
                         width: "100%", height: Math.max((d.calories / maxWeeklyCal) * 100, 4),
                         backgroundColor: d.calories > (profile.calorieGoal ?? 0) ? colors.destructive : colors.primary,
@@ -387,29 +453,42 @@ export default function HomeScreen() {
                       <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginTop: 4 }}>
                         {d.label.slice(0, 3)}
                       </Text>
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
               </View>
-              <Text style={{ fontSize: 9, color: colors.mutedForeground, marginTop: 2, alignSelf: "flex-end" }}>kcal</Text>
             </View>
           )}
 
           {historyView === "monthly" && (
             <View>
-              <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 8 }}>
-                Weekly Calories (this month)
-              </Text>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>
+                  Weekly Calories (this month)
+                </Text>
+                <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>kcal</Text>
+              </View>
               <View style={{ flexDirection: "row", gap: 8, height: 120, paddingBottom: 4 }}>
                 <View style={{ width: 32, justifyContent: "space-between", alignItems: "flex-end", paddingRight: 4 }}>
-                  <Text style={{ fontSize: 8, color: colors.mutedForeground }}>100k</Text>
-                  <Text style={{ fontSize: 8, color: colors.mutedForeground }}>50k</Text>
-                  <Text style={{ fontSize: 8, color: colors.mutedForeground }}>20k</Text>
-                  <Text style={{ fontSize: 8, color: colors.mutedForeground }}>0</Text>
+                  {mAxis.map((val, idx) => (
+                    <Text key={idx} style={{ fontSize: 8, color: colors.mutedForeground }}>
+                      {val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}
+                    </Text>
+                  ))}
                 </View>
                 <View style={{ flex: 1, flexDirection: "row", alignItems: "flex-end", gap: 12 }}>
                   {monthlyData.map((d, i) => (
-                    <View key={i} style={{ flex: 1, alignItems: "center" }}>
+                    <TouchableOpacity
+                      key={i}
+                      style={{ flex: 1, alignItems: "center" }}
+                      onPress={() => setSelectedBarIndex(selectedBarIndex === i + 100 ? null : i + 100)}
+                      activeOpacity={0.8}
+                    >
+                      {selectedBarIndex === i + 100 && (
+                        <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 2 }}>
+                          {d.calories}
+                        </Text>
+                      )}
                       <View style={{
                         width: "100%", height: Math.max((d.calories / maxMonthlyCal) * 100, 4),
                         backgroundColor: colors.primary, borderRadius: 4, opacity: 0.8,
@@ -417,11 +496,10 @@ export default function HomeScreen() {
                       <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginTop: 4 }}>
                         {d.week}
                       </Text>
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
               </View>
-              <Text style={{ fontSize: 9, color: colors.mutedForeground, marginTop: 2, alignSelf: "flex-end" }}>kcal</Text>
             </View>
           )}
 

@@ -201,14 +201,10 @@ export default function RecipesScreen() {
             <RecipeCard
               recipe={item}
               onPress={() => openRecipe(item)}
-              onSave={tab === "saved" ? undefined : () => {
+              onSave={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 isRecipeSaved(item.id) ? unsaveRecipe(item.id) : saveRecipe(item);
               }}
-              onDelete={tab === "saved" ? () => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                unsaveRecipe(item.id);
-              } : undefined}
               isSaved={isRecipeSaved(item.id)}
             />
           )}
