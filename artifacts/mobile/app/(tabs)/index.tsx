@@ -16,63 +16,21 @@ import { getDailyLog, getNotifications, markAllNotificationsRead } from "@/servi
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
-function DailyView({ selectedDate, userId, profileGoal, colors }: {
-  selectedDate: Date;
-  userId?: string;
+function DailyView({ todayLog, profileGoal, colors }: {
+  todayLog: { entries: { calories: number; protein: number; carbs: number; fats: number }[] };
   profileGoal: number;
   colors: any;
 }) {
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<{ calories: number; protein: number; carbs: number; fats: number } | null>(null);
-
-  useEffect(() => {
-    if (!userId) return;
-    const dateKey = selectedDate.toISOString().split("T")[0];
-    setLoading(true);
-    getDailyLog(userId, dateKey)
-      .then((log) => {
-        setData({
-          calories: log?.totalCalories ?? 0,
-          protein: log?.totalProtein ?? 0,
-          carbs: log?.totalCarbs ?? 0,
-          fats: log?.totalFats ?? 0,
-        });
-      })
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
-  }, [selectedDate, userId]);
-
-  if (!userId) {
-    return (
-      <View>
-        <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 8 }}>
-          {selectedDate.toLocaleDateString("en-IN", { weekday: "long", month: "short", day: "numeric" })}
-        </Text>
-        <Text style={{ fontSize: 13, color: colors.mutedForeground, textAlign: "center", paddingVertical: 12 }}>Sign in to view history</Text>
-      </View>
-    );
-  }
-
-  if (loading) {
-    return (
-      <View>
-        <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 8 }}>
-          {selectedDate.toLocaleDateString("en-IN", { weekday: "long", month: "short", day: "numeric" })}
-        </Text>
-        <Text style={{ fontSize: 13, color: colors.mutedForeground, textAlign: "center", paddingVertical: 12 }}>Loading...</Text>
-      </View>
-    );
-  }
-
-  const consumed = data?.calories ?? 0;
-  const protein = data?.protein ?? 0;
-  const carbs = data?.carbs ?? 0;
-  const fats = data?.fats ?? 0;
+  const consumed = todayLog.entries.reduce((s, e) => s + e.calories, 0);
+  const protein = todayLog.entries.reduce((s, e) => s + e.protein, 0);
+  const carbs = todayLog.entries.reduce((s, e) => s + e.carbs, 0);
+  const fats = todayLog.entries.reduce((s, e) => s + e.fats, 0);
+  const today = new Date();
 
   return (
     <View>
       <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 8 }}>
-        {selectedDate.toLocaleDateString("en-IN", { weekday: "long", month: "short", day: "numeric" })}
+        {today.toLocaleDateString("en-IN", { weekday: "long", month: "short", day: "numeric" })}
       </Text>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 }}>
         <View style={{ flex: 1, height: 8, backgroundColor: colors.secondary, borderRadius: 4 }}>
@@ -113,8 +71,6 @@ export default function HomeScreen() {
   const isLoggedIn = !!user;
 
   const [historyView, setHistoryView] = useState<"daily" | "weekly" | "monthly">("daily");
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [showCalendar, setShowCalendar] = useState(false);
   const [weeklyData, setWeeklyData] = useState<{ date: Date; calories: number; label: string }[]>([]);
   const [monthlyData, setMonthlyData] = useState<{ week: string; calories: number }[]>([]);
   const [weeklyMax, setWeeklyMax] = useState(1);
@@ -143,36 +99,19 @@ export default function HomeScreen() {
     snack: "cafe-outline",
   };
 
-  // Calendar helpers
-  const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
-  const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
-  const today = new Date();
-  const calMonth = selectedDate.getMonth();
-  const calYear = selectedDate.getFullYear();
-  const numDays = daysInMonth(calYear, calMonth);
-  const startDay = firstDayOfMonth(calYear, calMonth);
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-  const isSameDay = (d1: Date, d2: Date) =>
-    d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
-
-  const isToday = (day: number) => isSameDay(new Date(calYear, calMonth, day), today);
-  const isSelected = (day: number) => isSameDay(new Date(calYear, calMonth, day), selectedDate);
-
-  const navigateMonth = (dir: number) => {
-    setSelectedDate(new Date(calYear, calMonth + dir, 1));
-  };
-
-  // Load real weekly/monthly data from DB based on selected date
+  // Load real weekly/monthly data from DB whenever todayLog changes (reflects new food entries)
   useEffect(() => {
     const uid = dbUser?.userId || user?.uid;
     if (!uid) return;
     (async () => {
       try {
-        // Weekly: 7 days centered on selected date (3 before, selected, 3 after)
+        const today = new Date();
+        // Weekly: last 7 days ending today
         const wd = [];
-        for (let i = -3; i <= 3; i++) {
-          const d = new Date(selectedDate);
+        for (let i = -6; i <= 0; i++) {
+          const d = new Date(today);
           d.setDate(d.getDate() + i);
           const dateKey = d.toISOString().split("T")[0];
           const log = await getDailyLog(uid, dateKey);
@@ -183,10 +122,10 @@ export default function HomeScreen() {
         const maxCal = Math.max(...wd.map((d) => d.calories), (profile.calorieGoal ?? 2000), 1);
         setWeeklyMax(maxCal);
 
-        // Monthly: weeks of the selected date's month
+        // Monthly: weeks of current month
         const md = [];
-        const y = selectedDate.getFullYear();
-        const m = selectedDate.getMonth();
+        const y = today.getFullYear();
+        const m = today.getMonth();
         const totalDays = new Date(y, m + 1, 0).getDate();
         const weeks = Math.ceil(totalDays / 7);
         for (let w = 0; w < weeks; w++) {
@@ -194,8 +133,8 @@ export default function HomeScreen() {
           const weekEnd = Math.min(weekStart + 6, totalDays);
           let weekCal = 0;
           for (let d = weekStart; d <= weekEnd; d++) {
-            const dateStr = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-            const log = await getDailyLog(uid, dateStr);
+            const ds = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+            const log = await getDailyLog(uid, ds);
             weekCal += log?.totalCalories ?? 0;
           }
           md.push({ week: `Week ${w + 1}`, calories: weekCal });
@@ -204,7 +143,7 @@ export default function HomeScreen() {
         setMonthlyMax(Math.max(...md.map((d) => d.calories), 1));
       } catch {}
     })();
-  }, [dbUser?.userId, user?.uid, profile.calorieGoal, selectedDate]);
+  }, [dbUser?.userId, user?.uid, profile.calorieGoal, todayLog]);
 
   // Poll unread notifications
   useEffect(() => {
@@ -221,29 +160,6 @@ export default function HomeScreen() {
     return () => clearInterval(interval);
   }, [dbUser?.userId]);
 
-  // Nice rounded axis labels — 4 evenly spaced values (top to bottom)
-  const niceAxis = (max: number) => {
-    if (max <= 0) return [0, 0, 0, 0];
-    // Round max up to a nice number
-    const digits = Math.floor(Math.log10(max));
-    const base = Math.pow(10, digits);
-    const ratio = max / base;
-    let niceMax: number;
-    if (ratio <= 1.2) niceMax = base;
-    else if (ratio <= 2.5) niceMax = base * 2.5;
-    else if (ratio <= 5) niceMax = base * 5;
-    else niceMax = base * 10;
-    const step = niceMax / 3;
-    return [
-      Math.round(niceMax),
-      Math.round(niceMax - step),
-      Math.round(niceMax - step * 2),
-      0,
-    ];
-  };
-
-  const wAxis = niceAxis(weeklyMax);
-  const mAxis = niceAxis(monthlyMax);
   const maxWeeklyCal = weeklyMax;
   const maxMonthlyCal = monthlyMax;
 
@@ -423,18 +339,7 @@ export default function HomeScreen() {
 
         {/* Diet History Tracking */}
         <View style={s.card}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <Text style={s.cardTitle}>Diet History</Text>
-            <TouchableOpacity
-              style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-              onPress={() => setShowCalendar(!showCalendar)}
-            >
-              <Feather name="calendar" size={14} color={colors.primary} />
-              <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: colors.primary }}>
-                {showCalendar ? "Hide" : "Calendar"}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={s.cardTitle}>Diet History</Text>
 
           {/* View toggle buttons */}
           <View style={{ flexDirection: "row", gap: 6, marginBottom: 14 }}>
@@ -457,158 +362,73 @@ export default function HomeScreen() {
             ))}
           </View>
 
-          {/* Calendar view */}
-          {showCalendar && (
-            <View style={{ marginBottom: 14 }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <TouchableOpacity onPress={() => navigateMonth(-1)}>
-                  <Feather name="chevron-left" size={18} color={colors.primary} />
-                </TouchableOpacity>
-                <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>
-                  {selectedDate.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
-                </Text>
-                <TouchableOpacity onPress={() => navigateMonth(1)}>
-                  <Feather name="chevron-right" size={18} color={colors.primary} />
-                </TouchableOpacity>
-              </View>
-              {/* Day header row */}
-              <View style={{ flexDirection: "row" }}>
-                {dayNames.map((d) => (
-                  <View key={d} style={{ flex: 1, alignItems: "center", paddingVertical: 4 }}>
-                    <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>{d}</Text>
-                  </View>
-                ))}
-              </View>
-              {/* Calendar grid — 7 cells per row */}
-              {Array.from({ length: Math.ceil((startDay + numDays) / 7) }).map((_, rowIdx) => (
-                <View key={`row-${rowIdx}`} style={{ flexDirection: "row" }}>
-                  {Array.from({ length: 7 }).map((_, colIdx) => {
-                    const cellIdx = rowIdx * 7 + colIdx;
-                    const day = cellIdx - startDay + 1;
-                    if (day < 1 || day > numDays) {
-                      return <View key={`cell-${rowIdx}-${colIdx}`} style={{ flex: 1, height: 36 }} />;
-                    }
-                    const todayFlag = isToday(day);
-                    const selectedFlag = isSelected(day);
-                    return (
-                      <TouchableOpacity
-                        key={day}
-                        style={{
-                          flex: 1, height: 36, alignItems: "center", justifyContent: "center",
-                          borderRadius: 18,
-                          backgroundColor: selectedFlag ? colors.primary : todayFlag ? colors.primary + "30" : "transparent",
-                        }}
-                        onPress={() => {
-                          setSelectedDate(new Date(calYear, calMonth, day));
-                          setShowCalendar(false);
-                          setHistoryView("daily");
-                          setSelectedBarIndex(null);
-                        }}
-                      >
-                        <Text style={{
-                          fontSize: 13, fontFamily: "Inter_500Medium",
-                          color: selectedFlag ? colors.primaryForeground : todayFlag ? colors.primary : colors.foreground,
-                        }}>{day}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Graph views */}
+          {/* Graph views - no Y-axis labels, clean bars */}
           {historyView === "weekly" && (
             <View>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>
-                  Calories (last 7 days)
-                </Text>
-                <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>kcal</Text>
-              </View>
-              <View style={{ flexDirection: "row", gap: 8, height: 120, paddingBottom: 4 }}>
-                <View style={{ width: 32, justifyContent: "space-between", alignItems: "flex-end", paddingRight: 4 }}>
-                  {wAxis.map((val, idx) => (
-                    <Text key={idx} style={{ fontSize: 8, color: colors.mutedForeground }}>
-                      {val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}
-                    </Text>
-                  ))}
-                </View>
-                <View style={{ flex: 1, flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
-                  {weeklyData.map((d, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      style={{ flex: 1, alignItems: "center" }}
-                      onPress={() => setSelectedBarIndex(selectedBarIndex === i ? null : i)}
-                      activeOpacity={0.8}
-                    >
-                      {selectedBarIndex === i && (
-                        <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 2 }}>
-                          {d.calories}
-                        </Text>
-                      )}
-                      <View style={{
-                        width: "100%", height: Math.max((d.calories / maxWeeklyCal) * 100, 4),
-                        backgroundColor: d.calories > (profile.calorieGoal ?? 0) ? colors.destructive : colors.primary,
-                        borderRadius: 4, opacity: 0.8,
-                      }} />
-                      <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginTop: 4 }}>
-                        {d.label.slice(0, 3)}
+              <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 8 }}>
+                Calories (last 7 days)
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8, height: 120, paddingBottom: 4 }}>
+                {weeklyData.map((d, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={{ flex: 1, alignItems: "center" }}
+                    onPress={() => setSelectedBarIndex(selectedBarIndex === i ? null : i)}
+                    activeOpacity={0.8}
+                  >
+                    {selectedBarIndex === i && (
+                      <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 2 }}>
+                        {d.calories}
                       </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                    )}
+                    <View style={{
+                      width: "100%", height: Math.max((d.calories / maxWeeklyCal) * 100, 4),
+                      backgroundColor: d.calories > (profile.calorieGoal ?? 0) ? colors.destructive : colors.primary,
+                      borderRadius: 4, opacity: 0.8,
+                    }} />
+                    <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginTop: 4 }}>
+                      {d.label.slice(0, 3)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
           )}
 
           {historyView === "monthly" && (
             <View>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>
-                  Weekly Calories (this month)
-                </Text>
-                <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>kcal</Text>
-              </View>
-              <View style={{ flexDirection: "row", gap: 8, height: 120, paddingBottom: 4 }}>
-                <View style={{ width: 32, justifyContent: "space-between", alignItems: "flex-end", paddingRight: 4 }}>
-                  {mAxis.map((val, idx) => (
-                    <Text key={idx} style={{ fontSize: 8, color: colors.mutedForeground }}>
-                      {val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}
-                    </Text>
-                  ))}
-                </View>
-                <View style={{ flex: 1, flexDirection: "row", alignItems: "flex-end", gap: 12 }}>
-                  {monthlyData.map((d, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      style={{ flex: 1, alignItems: "center" }}
-                      onPress={() => setSelectedBarIndex(selectedBarIndex === i + 100 ? null : i + 100)}
-                      activeOpacity={0.8}
-                    >
-                      {selectedBarIndex === i + 100 && (
-                        <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 2 }}>
-                          {d.calories}
-                        </Text>
-                      )}
-                      <View style={{
-                        width: "100%", height: Math.max((d.calories / maxMonthlyCal) * 100, 4),
-                        backgroundColor: colors.primary, borderRadius: 4, opacity: 0.8,
-                      }} />
-                      <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginTop: 4 }}>
-                        {d.week}
+              <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginBottom: 8 }}>
+                Weekly Calories (this month)
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 12, height: 120, paddingBottom: 4 }}>
+                {monthlyData.map((d, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={{ flex: 1, alignItems: "center" }}
+                    onPress={() => setSelectedBarIndex(selectedBarIndex === i + 100 ? null : i + 100)}
+                    activeOpacity={0.8}
+                  >
+                    {selectedBarIndex === i + 100 && (
+                      <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 2 }}>
+                        {d.calories}
                       </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                    )}
+                    <View style={{
+                      width: "100%", height: Math.max((d.calories / maxMonthlyCal) * 100, 4),
+                      backgroundColor: colors.primary, borderRadius: 4, opacity: 0.8,
+                    }} />
+                    <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginTop: 4 }}>
+                      {d.week}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
           )}
 
           {historyView === "daily" && (
             <DailyView
-              selectedDate={selectedDate}
-              userId={dbUser?.userId || user?.uid}
+              todayLog={todayLog}
               profileGoal={profile.calorieGoal ?? 2000}
               colors={colors}
             />

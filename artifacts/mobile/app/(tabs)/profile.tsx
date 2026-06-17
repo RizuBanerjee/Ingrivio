@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput,
   ScrollView, Platform,
@@ -6,7 +6,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -47,22 +47,30 @@ export default function ProfileScreen() {
     : 0;
 
   // Poll pending friend requests and notifications
-  useEffect(() => {
+  const refreshRequests = useCallback(async () => {
     if (!isLoggedIn || !dbUser) return;
-    const check = async () => {
-      try {
-        const [fr, notifs] = await Promise.all([
-          getFriendRequests(dbUser.userId),
-          getNotifications(dbUser.userId),
-        ]);
-        setPendingRequests(fr.received.filter((req: any) => req.status === "pending").length);
-        setUnreadNotifs(notifs.notifications.filter((n: any) => !n.read).length);
-      } catch {}
-    };
-    check();
-    const interval = setInterval(check, 30000);
-    return () => clearInterval(interval);
+    try {
+      const [fr, notifs] = await Promise.all([
+        getFriendRequests(dbUser.userId),
+        getNotifications(dbUser.userId),
+      ]);
+      setPendingRequests(fr.received.filter((req: any) => req.status === "pending").length);
+      setUnreadNotifs(notifs.notifications.filter((n: any) => !n.read).length);
+    } catch {}
   }, [isLoggedIn, dbUser]);
+
+  useEffect(() => {
+    refreshRequests();
+    const interval = setInterval(refreshRequests, 30000);
+    return () => clearInterval(interval);
+  }, [refreshRequests]);
+
+  // Refresh immediately when screen comes into focus (e.g., after accepting/rejecting requests)
+  useFocusEffect(
+    useCallback(() => {
+      refreshRequests();
+    }, [refreshRequests])
+  );
 
   const save = async () => {
     if (saving) return;
