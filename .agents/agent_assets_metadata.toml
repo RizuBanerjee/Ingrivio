@@ -2,12 +2,6 @@ uploads = []
 outputs = []
 
 [[generated]]
-id = "qVk2tzY3oz1umqYDjhmsz"
-uri = "file://artifacts/mobile/assets/images/icon.png"
-type = "image"
-title = "generated_image"
-
-[[generated]]
 id = "b2-8lI6vCBmOfaVFYmjYW"
 uri = "file://artifacts/mobile/assets/images/hero_food.png"
 type = "image"
